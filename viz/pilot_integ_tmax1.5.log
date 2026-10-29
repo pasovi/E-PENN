@@ -1,0 +1,16 @@
+[pilot] finite-difference gradient check: max rel err = 1.62e-08
+[pilot] tag=integ_tmax1.5_s0  min |Delta0|=0.41, v_P t_max=1.80 (no head reached within horizon iff min|Delta0| > v_P t_max: False)
+[pilot] it   250  J=0.7896  gramPR E/P=2.07/2.22  eta E/P=0.965/0.928  PR(H) E/P=8.71/8.67  PR(H)unc E/P=4.34/5.28  [0s]
+[pilot] it   500  J=0.7740  gramPR E/P=2.03/2.06  eta E/P=0.988/0.978  PR(H) E/P=7.84/7.97  PR(H)unc E/P=3.67/4.47  [1s]
+[pilot] it   750  J=0.7736  gramPR E/P=2.02/2.04  eta E/P=0.991/0.984  PR(H) E/P=7.46/7.64  PR(H)unc E/P=3.43/4.23  [1s]
+[pilot] it  1000  J=0.7735  gramPR E/P=2.01/2.03  eta E/P=0.991/0.985  PR(H) E/P=7.27/7.51  PR(H)unc E/P=3.32/4.15  [1s]
+[pilot] it  1250  J=0.7735  gramPR E/P=2.02/2.03  eta E/P=0.991/0.985  PR(H) E/P=7.16/7.45  PR(H)unc E/P=3.26/4.12  [2s]
+[pilot] it  1500  J=0.7735  gramPR E/P=2.02/2.03  eta E/P=0.991/0.986  PR(H) E/P=7.08/7.42  PR(H)unc E/P=3.21/4.09  [2s]
+[pilot] it  1750  J=0.7735  gramPR E/P=2.01/2.02  eta E/P=0.991/0.987  PR(H) E/P=7.04/7.40  PR(H)unc E/P=3.19/4.08  [2s]
+[pilot] it  2000  J=0.7735  gramPR E/P=2.02/2.02  eta E/P=0.991/0.987  PR(H) E/P=7.01/7.38  PR(H)unc E/P=3.17/4.07  [3s]
+[pilot] it  2250  J=0.7735  gramPR E/P=2.01/2.02  eta E/P=0.992/0.987  PR(H) E/P=6.99/7.38  PR(H)unc E/P=3.15/4.07  [3s]
+[pilot] it  2500  J=0.7735  gramPR E/P=2.01/2.02  eta E/P=0.992/0.988  PR(H) E/P=6.98/7.38  PR(H)unc E/P=3.14/4.07  [4s]
+[pilot] it  2750  J=0.7735  gramPR E/P=2.01/2.02  eta E/P=0.992/0.988  PR(H) E/P=6.97/7.38  PR(H)unc E/P=3.13/4.07  [4s]
+[pilot] it  3000  J=0.7735  gramPR E/P=2.01/2.02  eta E/P=0.993/0.988  PR(H) E/P=6.97/7.38  PR(H)unc E/P=3.12/4.07  [4s]
+[pilot] J_final=0.7735 vs analytic saddle 0.7481; alignment with Delta0-hat: E mean 0.55605 (min -0.9625), P mean 0.55507 (min -0.9574); saddle Gram PR 1.96
+[pilot] wrote /Users/psole/Desktop/Barcelona PhD/Game Theory/paper1_reproduction/viz/pilot_integ_tmax1.5_s0

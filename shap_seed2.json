@@ -1,0 +1,40 @@
+{
+  "seed": 2,
+  "iters": 5000,
+  "oracle": {
+    "cap_full": 1.0,
+    "gap_full": 0.001,
+    "cap_baseline(DC)": 0.25,
+    "gap_baseline(DC)": 0.2559,
+    "shap_cap": {
+      "linear": 0.0,
+      "low": 0.625,
+      "mid": 0.083,
+      "high": 0.042
+    },
+    "shap_gapred": {
+      "linear": 0.0412,
+      "low": 0.197,
+      "mid": -0.0116,
+      "high": 0.0283
+    }
+  },
+  "selfplay": {
+    "cap_full": 0.25,
+    "gap_full": 0.108,
+    "cap_baseline(DC)": 0.25,
+    "gap_baseline(DC)": 0.0988,
+    "shap_cap": {
+      "linear": -0.104,
+      "low": -0.021,
+      "mid": 0.062,
+      "high": 0.062
+    },
+    "shap_gapred": {
+      "linear": 0.0006,
+      "low": -0.0231,
+      "mid": 0.0098,
+      "high": 0.0036
+    }
+  }
+}

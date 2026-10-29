@@ -1,0 +1,38 @@
+{
+  "baseline_actor_v2": {
+    "prZ_P": 1.92,
+    "prZ_E": 2.98,
+    "hPR_P_all": 2.62,
+    "hPR_P_cap": 2.09,
+    "capture": "23%"
+  },
+  "analytic_saddle": {
+    "hPR_all": 1.94,
+    "hPR_cap": 1.66
+  },
+  "oracle_pursuer_3seeds": {
+    "capture": 1.0,
+    "hPR_all": [
+      7.32,
+      7.43,
+      6.92
+    ],
+    "hPR_cap": [
+      2.68,
+      2.43,
+      2.68
+    ],
+    "zPR_all": [
+      3.66,
+      3.11,
+      3.5
+    ],
+    "zPR_cap": [
+      2.85,
+      2.48,
+      2.84
+    ]
+  },
+  "corrected_reading": "On capturable heads (determined pursuit) near-optimal oracle (~2.6), mediocre actor (2.09) and analytic saddle (1.66) are all low-rank ~2 -> rank-2 confirms Prop 1 across playing strength, not coincidence. all-16 oracle rank (~7.2) is a hopeless-heads artifact (12 undetermined heads). n=4 capturable heads (noisy) but seed-robust.",
+  "correction_note": "Supersedes first pass which mis-reported the oracle as high-rank; that was the hopeless-heads artifact."
+}

@@ -1,0 +1,29 @@
+{
+  "baseline_v2_capture_fraction": 0.1388888888888889,
+  "distilled_capture_fraction": 0.171875,
+  "v2_feedback_capture_fraction": 0.582,
+  "obstacle_capture_fraction": 0.15104166666666666,
+  "Nh_scaling": [
+    {
+      "n_h": 4,
+      "align": 0.817466911974664,
+      "cap_frac": 0.078125
+    },
+    {
+      "n_h": 8,
+      "align": 0.8666980700900815,
+      "cap_frac": 0.125
+    },
+    {
+      "n_h": 16,
+      "align": 0.8825453461362256,
+      "cap_frac": 0.14453125
+    },
+    {
+      "n_h": 32,
+      "align": 0.816048745218276,
+      "cap_frac": 0.32421875
+    }
+  ],
+  "n_train_iter_distill": 5000
+}

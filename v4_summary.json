@@ -1,0 +1,14 @@
+{
+  "n_train_iter_honest_V": 12000,
+  "honest_V_grad_norm": {
+    "mean": 4.524388555215752,
+    "median": 4.5588737958881556,
+    "std": 0.49017754846022515,
+    "target": 5.000000000000001
+  },
+  "honest_feedback_capture_fraction": 0.1875,
+  "actor_vs_honest_critic_alignment_mean": 0.4310887161243735,
+  "v1_adversarial_actor_train_iters": 14000,
+  "comment_v2_supervised_loss": "RETRACTED (was supervised on V*)",
+  "comment_v3_distillation_loss": "RETRACTED (was supervised on u*=Delta/|Delta|)"
+}

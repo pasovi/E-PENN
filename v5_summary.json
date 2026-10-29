@@ -1,0 +1,18 @@
+{
+  "n_train_iter": 50000,
+  "final_loss": 0.0023946655559619803,
+  "final_loss_hji": 0.002310316075466706,
+  "final_loss_term": 1.429700604083625e-05,
+  "final_loss_cap": 2.5728900582185698e-06,
+  "final_mean_grad_norm": 3.015567090966503,
+  "target_grad_norm": 5.0,
+  "min_loss_seen": 0.0012949303979930705,
+  "trajectories": {
+    "actor_n_captured": 2,
+    "actor_n_total": 9,
+    "actor_mean_Tc": 2.28125,
+    "feedback_n_captured": 2,
+    "feedback_n_total": 9,
+    "feedback_mean_Tc": 2.46875
+  }
+}

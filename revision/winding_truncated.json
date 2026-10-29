@@ -1,0 +1,94 @@
+{
+ "baseline": {
+  "n_classes_truncated": 11,
+  "classes": [
+   "(np.int64(-2), np.int64(1))",
+   "(np.int64(-1), np.int64(0))",
+   "(np.int64(-2), np.int64(-1))",
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(-1), np.int64(1))",
+   "(np.int64(0), np.int64(2))",
+   "(np.int64(1), np.int64(2))",
+   "(np.int64(-1), np.int64(-2))",
+   "(np.int64(-1), np.int64(1))",
+   "(np.int64(-1), np.int64(-2))",
+   "(np.int64(-1), np.int64(2))",
+   "(np.int64(1), np.int64(-1))",
+   "(np.int64(-2), np.int64(1))",
+   "(np.int64(-2), np.int64(0))",
+   "(np.int64(0), np.int64(2))",
+   "(np.int64(-2), np.int64(1))"
+  ],
+  "mean_kcap": 58.5625,
+  "n_captured": 4
+ },
+ "E1": {
+  "n_classes_truncated": 5,
+  "classes": [
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(-2), np.int64(-1))",
+   "(np.int64(-2), np.int64(-1))",
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(-2), np.int64(0))",
+   "(np.int64(-2), np.int64(0))",
+   "(np.int64(-2), np.int64(0))",
+   "(np.int64(2), np.int64(1))",
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(-2), np.int64(0))",
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(-2), np.int64(0))",
+   "(np.int64(1), np.int64(0))"
+  ],
+  "mean_kcap": 52.875,
+  "n_captured": 9
+ },
+ "E1b": {
+  "n_classes_truncated": 3,
+  "classes": [
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(-2), np.int64(0))",
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(1), np.int64(0))",
+   "(np.int64(-2), np.int64(0))",
+   "(np.int64(1), np.int64(0))"
+  ],
+  "mean_kcap": 48.75,
+  "n_captured": 13
+ },
+ "E7_14k": {
+  "n_classes_truncated": 10,
+  "classes": [
+   "(np.int64(-2), np.int64(1))",
+   "(np.int64(-1), np.int64(0))",
+   "(np.int64(-2), np.int64(-1))",
+   "(np.int64(2), np.int64(0))",
+   "(np.int64(-1), np.int64(1))",
+   "(np.int64(0), np.int64(2))",
+   "(np.int64(1), np.int64(2))",
+   "(np.int64(-1), np.int64(-1))",
+   "(np.int64(-1), np.int64(1))",
+   "(np.int64(-1), np.int64(-1))",
+   "(np.int64(-1), np.int64(1))",
+   "(np.int64(1), np.int64(-1))",
+   "(np.int64(-2), np.int64(1))",
+   "(np.int64(-2), np.int64(0))",
+   "(np.int64(0), np.int64(2))",
+   "(np.int64(-2), np.int64(1))"
+  ],
+  "mean_kcap": 59.3125,
+  "n_captured": 3
+ }
+}

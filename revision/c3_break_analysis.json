@@ -1,0 +1,20 @@
+{
+ "K6": {
+  "K": 6,
+  "break_k": 6,
+  "drop_ratio": 59.6,
+  "frac_below_K": 0.9801
+ },
+ "K24": {
+  "K": 24,
+  "break_k": 22,
+  "drop_ratio": 23.8,
+  "frac_below_K": 0.983
+ },
+ "K12_baseline": {
+  "K": 12,
+  "break_k": 10,
+  "drop_ratio": 41.2,
+  "frac_below_K": 0.9838
+ }
+}

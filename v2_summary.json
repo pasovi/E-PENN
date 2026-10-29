@@ -1,0 +1,10 @@
+{
+  "n_train_iter_actor": 14000,
+  "actor_capture_fraction": 0.13541666666666666,
+  "actor_mean_Tc_when_captured": 2.5,
+  "feedback_capture_fraction": 0.5815972222222222,
+  "feedback_mean_Tc_when_captured": 2.5380597014925375,
+  "analytic_mean_Tc": 3.4470776844042055,
+  "actor_Tc_min": 0.0625,
+  "feedback_Tc_min": 0.0625
+}

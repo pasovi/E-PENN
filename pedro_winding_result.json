@@ -1,0 +1,38 @@
+{
+  "definition": "net winding w = (unwrapped net evader displacement over [0,t_max])/L, rounded per axis",
+  "baseline_v2": {
+    "classes": 12,
+    "multiplicity": [
+      3,
+      2,
+      2,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "singletons": 9,
+    "within_class_pairs": 5,
+    "within_dists": [
+      0.015,
+      0.017,
+      0.063,
+      0.066,
+      0.808
+    ],
+    "within_mean": 0.194,
+    "within_median": 0.063,
+    "across_mean": 1.245,
+    "ratio_mean": 6.4,
+    "ratio_median": 19.8
+  },
+  "C4": {
+    "classes": 4
+  },
+  "reading": "Definition reproduces paper (12 classes; mean ratio 6.2x). But 6.2x is a mean over 5 pairs dragged up by ONE outlier (0.808); median separation ~20x (4 pairs <=0.07). 9/16 heads are singletons. Fix: state definition + multiplicity + median + n=5/outlier caveat."
+}

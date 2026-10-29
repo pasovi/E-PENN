@@ -1,0 +1,10 @@
+{
+  "checkpoint_iters": 14000,
+  "evader_pc_95": 10,
+  "evader_pc_99": 13,
+  "evader_participation_ratio": 6.748474143102122,
+  "pursuer_pc_95": 10,
+  "pursuer_pc_99": 14,
+  "pursuer_participation_ratio": 7.0797168782454465,
+  "n_b_nominal": 16
+}

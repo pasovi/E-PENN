@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+*.aux
+*.out
+rev2/summary/paper1_summary.log
+rev2/summary/build.log

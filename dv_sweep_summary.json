@@ -1,0 +1,112 @@
+{
+  "budget_iters": 14000,
+  "n_seeds": 3,
+  "dv_ridge": 0.23,
+  "dv_sat": 0.334,
+  "by_dv": {
+    "0.05": {
+      "R": 0.28,
+      "rho": 0.28,
+      "latPR_E": 5.12,
+      "latPR_E_sd": 1.26,
+      "zPR_E": 1.36,
+      "zPR_E_sd": 0.14,
+      "latPR_P": 5.15,
+      "zPR_P": 1.28,
+      "captured": 0.0,
+      "cap_share_ICs": 0.0,
+      "f_analytic": 0.062
+    },
+    "0.1": {
+      "R": 0.48,
+      "rho": 0.48,
+      "latPR_E": 5.99,
+      "latPR_E_sd": 1.14,
+      "zPR_E": 1.53,
+      "zPR_E_sd": 0.08,
+      "latPR_P": 6.4,
+      "zPR_P": 1.53,
+      "captured": 0.062,
+      "cap_share_ICs": 0.062,
+      "f_analytic": 0.181
+    },
+    "0.15": {
+      "R": 0.68,
+      "rho": 0.68,
+      "latPR_E": 5.62,
+      "latPR_E_sd": 1.18,
+      "zPR_E": 1.81,
+      "zPR_E_sd": 0.3,
+      "latPR_P": 8.13,
+      "zPR_P": 2.64,
+      "captured": 0.188,
+      "cap_share_ICs": 0.188,
+      "f_analytic": 0.363
+    },
+    "0.2": {
+      "R": 0.88,
+      "rho": 0.88,
+      "latPR_E": 6.41,
+      "latPR_E_sd": 0.12,
+      "zPR_E": 2.17,
+      "zPR_E_sd": 0.29,
+      "latPR_P": 7.83,
+      "zPR_P": 2.05,
+      "captured": 0.25,
+      "cap_share_ICs": 0.25,
+      "f_analytic": 0.608
+    },
+    "0.25": {
+      "R": 1.08,
+      "rho": 1.08,
+      "latPR_E": 4.68,
+      "latPR_E_sd": 0.55,
+      "zPR_E": 2.24,
+      "zPR_E_sd": 0.42,
+      "latPR_P": 7.27,
+      "zPR_P": 2.54,
+      "captured": 0.583,
+      "cap_share_ICs": 0.875,
+      "f_analytic": 0.872
+    },
+    "0.3": {
+      "R": 1.28,
+      "rho": 1.28,
+      "latPR_E": 6.24,
+      "latPR_E_sd": 0.57,
+      "zPR_E": 2.9,
+      "zPR_E_sd": 0.71,
+      "latPR_P": 8.0,
+      "zPR_P": 1.99,
+      "captured": 0.812,
+      "cap_share_ICs": 1.0,
+      "f_analytic": 0.981
+    },
+    "0.4": {
+      "R": 1.68,
+      "rho": 1.68,
+      "latPR_E": 6.89,
+      "latPR_E_sd": 0.34,
+      "zPR_E": 2.54,
+      "zPR_E_sd": 0.1,
+      "latPR_P": 7.38,
+      "zPR_P": 1.46,
+      "captured": 0.979,
+      "cap_share_ICs": 1.0,
+      "f_analytic": 1.0
+    },
+    "0.5": {
+      "R": 2.08,
+      "rho": 2.08,
+      "latPR_E": 6.9,
+      "latPR_E_sd": 1.24,
+      "zPR_E": 3.09,
+      "zPR_E_sd": 0.56,
+      "latPR_P": 7.62,
+      "zPR_P": 1.49,
+      "captured": 1.0,
+      "cap_share_ICs": 1.0,
+      "f_analytic": 1.0
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "oracle": {
+    "final_cap_of_capturable_mean": 1.0,
+    "final_gap_capturable_mean": 0.0014,
+    "osc_sd_2ndhalf_mean": 0.0005,
+    "osc_sd_2ndhalf_by_seed": [
+      0.0005,
+      0.0004,
+      0.0006
+    ]
+  },
+  "selfplay": {
+    "final_cap_of_capturable_mean": 1.0,
+    "final_gap_capturable_mean": 0.0072,
+    "osc_sd_2ndhalf_mean": 0.0147,
+    "osc_sd_2ndhalf_by_seed": [
+      0.0034,
+      0.037,
+      0.0037
+    ]
+  },
+  "simul": {
+    "final_cap_of_capturable_mean": 0.917,
+    "final_gap_capturable_mean": 0.0542,
+    "osc_sd_2ndhalf_mean": 0.0189,
+    "osc_sd_2ndhalf_by_seed": [
+      0.0095,
+      0.0404,
+      0.0068
+    ]
+  },
+  "abr": {
+    "final_cap_of_capturable_mean": 0.0,
+    "final_gap_capturable_mean": 0.4556,
+    "osc_sd_2ndhalf_mean": 0.1727,
+    "osc_sd_2ndhalf_by_seed": [
+      0.1671,
+      0.1557,
+      0.1954
+    ]
+  }
+}

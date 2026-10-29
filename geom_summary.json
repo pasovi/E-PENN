@@ -1,0 +1,27 @@
+{
+  "disk": {
+    "n_train_iter": 12500,
+    "min_loss": 0.0004192014241348636,
+    "final_loss": 0.0007127891288484396,
+    "final_loss_hji": 0.0005075579540940604,
+    "final_mean_gE": 0.6533669445600186,
+    "final_mean_gP": 1.1602860692949488
+  },
+  "ball": {
+    "n_train_iter": 10000,
+    "min_loss": 0.00010838278862968767,
+    "final_loss": 0.00015834752328090668,
+    "final_loss_hji": 5.9774132696748474e-05,
+    "final_mean_gE": 0.48062703082197633,
+    "final_mean_gP": 0.8467713683167244
+  },
+  "mobius": {
+    "n_train_iter": 15000,
+    "min_loss": 0.003876066313479883,
+    "final_loss": 0.006675326552506338,
+    "final_loss_hji": 0.005573226065933475,
+    "final_mean_gE": 0.24337891989988866,
+    "final_mean_gP": 1.0167002340213136
+  },
+  "target_grad_norm_steady": 5.000000000000001
+}
