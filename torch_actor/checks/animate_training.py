@@ -21,6 +21,8 @@ Usage: python3 torch_actor/checks/animate_training.py [--every 100] [--fps 3]
        [--out training_evolution] [--format mp4|gif]
        [--left lifted|flat]  left panel: lifted paths on R^2, or the flat torus [0,L)^2
                              with periodic boundaries (paths wrap to the opposite side)
+       [--legend panels|middle]  per-panel legends, or one shared legend in a column between
+                             the panels naming each head and its outcome (captured at T_c, or escapes)
 mp4 needs an ffmpeg binary: the `imageio-ffmpeg` package provides one.
 """
 from __future__ import annotations
@@ -117,16 +119,21 @@ def wrapped_segments(traj, L):
 
 # ----------------------------------------------------------------- render
 def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
-           heads3d, out_path, fps, heads_left=None, fmt="mp4", left="lifted"):
+           heads3d, out_path, fps, heads_left=None, fmt="mp4", left="lifted", legend="panels"):
     n_h = x0.shape[0]
     heads_left = list(range(n_h)) if heads_left is None else list(heads_left)
     sims = [simulate(legacy(pE), legacy(pP), x0, cfg_r) for pE, pP in snaps]
     S0 = sims[0]
     L = cfg_r.L
     fig = plt.figure(figsize=(15, 10))
-    gs = fig.add_gridspec(2, 2, height_ratios=[3.2, 1.3], hspace=0.28, wspace=0.08)
-    axL = fig.add_subplot(gs[0, 0])
-    axR = fig.add_subplot(gs[0, 1], projection="3d")
+    if legend == "middle":
+        gs = fig.add_gridspec(2, 3, height_ratios=[3.2, 1.3], width_ratios=[1, 0.62, 1], hspace=0.28, wspace=0.02)
+        axL = fig.add_subplot(gs[0, 0]); axM = fig.add_subplot(gs[0, 1]); axM.axis("off")
+        axR = fig.add_subplot(gs[0, 2], projection="3d")
+    else:
+        gs = fig.add_gridspec(2, 2, height_ratios=[3.2, 1.3], hspace=0.28, wspace=0.08)
+        axL = fig.add_subplot(gs[0, 0])
+        axR = fig.add_subplot(gs[0, 1], projection="3d")
     axB = fig.add_subplot(gs[1, :])
 
     # static scenery, left
@@ -173,8 +180,9 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
             axL.annotate(str(j), x0[j] % L, fontsize=7, xytext=(3, 3), textcoords="offset points")
             cp = axL.scatter([], [], s=70, facecolors="none", edgecolors=c, lw=1.5)
             linesE[j] = lE; linesP[j] = lP; caps[j] = cp
-    axL.legend(fontsize=6.5 if len(heads_left) > 6 else 8, loc="upper right",
-               ncol=2 if len(heads_left) > 6 else 1, framealpha=0.9, title="colour = head")
+    if legend == "panels":
+        axL.legend(fontsize=6.5 if len(heads_left) > 6 else 8, loc="upper right",
+                   ncol=2 if len(heads_left) > 6 else 1, framealpha=0.9, title="colour = head")
 
     # static scenery, right
     A, B = np.meshgrid(np.linspace(0, 2 * np.pi, 60), np.linspace(0, 2 * np.pi, 30))
@@ -192,8 +200,29 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
         axR.scatter(*emb(x0[j], L), color=c, s=40, edgecolor="k")
         lines3E[j] = lE; lines3P[j] = lP
     axR.set_box_aspect((1, 1, 0.4)); axR.set_axis_off()
-    axR.legend(fontsize=8, loc="upper left")
-    axR.set_title("Embedded torus (same colours)", fontsize=10)
+    if legend == "panels":
+        axR.legend(fontsize=8, loc="upper left")
+        axR.set_title("Embedded torus (same colours)", fontsize=10)
+    else:
+        axR.set_title("Embedded torus", fontsize=10)
+        # one shared legend: head -> colour and outcome at the end of training
+        from matplotlib.lines import Line2D
+        Sf = sims[-1]
+        hs = []
+        for j in sorted(set(heads_left) | set(heads3d), key=lambda j: (not Sf["captured"][j], j)):
+            if Sf["captured"][j]:
+                lab = f"head {j}: captured, T_c = {Sf['Tc'][j]:.2f} (|Δ0| = {Sf['d0'][j]:.2f})"
+            else:
+                tag = "capturable" if Sf["capturable"][j] else "uncapturable"
+                lab = f"head {j}: escapes (|Δ0| = {Sf['d0'][j]:.2f}, {tag})"
+            hs.append(Line2D([], [], color=head_color(j), lw=2.5, label=lab))
+        hs += [Line2D([], [], color="k", lw=1.4, label="evader (solid)"),
+               Line2D([], [], color="k", lw=1.0, ls="--", label="pursuer (dashed)"),
+               Line2D([], [], marker="o", markerfacecolor="none", markeredgecolor="k", ls="", ms=9, label="capture"),
+               Line2D([], [], marker="s", color="tab:red", markeredgecolor="k", ls="", ms=8, label="pursuer start")]
+        axM.legend(handles=hs, loc="center", bbox_to_anchor=(0.5, 0.5), fontsize=8, frameon=True,
+                   framealpha=0.95, title="outcome at the end of training", title_fontsize=9,
+                   handlelength=2.2, borderpad=0.8)
 
     # loss history, bottom: full curves once; a marker moves along them
     st, LE, LP = hist[:, 0], hist[:, 1], hist[:, 2]
@@ -270,6 +299,7 @@ def main():
     ap.add_argument("--format", default="mp4", choices=["mp4", "gif"])
     ap.add_argument("--left", default="lifted", choices=["lifted", "flat"])
     ap.add_argument("--truncate", action="store_true", help="train with the capture-truncated distance term")
+    ap.add_argument("--legend", default="panels", choices=["panels", "middle"])
     a = ap.parse_args()
     out = os.path.join(HERE, "figs", a.name)
     os.makedirs(out, exist_ok=True)
@@ -298,7 +328,7 @@ def main():
     heads3d = heads_left if heads_left is not None else [int(h) for h in a.heads3d.split(",")]
     path = os.path.join(out, f"{a.out}.{a.format}")
     render(snaps, labels, snap_step, hist, x0, RunConfig(), cfg, heads3d, path, a.fps,
-           heads_left=heads_left, fmt=a.format, left=a.left)
+           heads_left=heads_left, fmt=a.format, left=a.left, legend=a.legend)
     print(f"rendered {len(snaps)} frames to {path} in {time.time() - t0:.0f} s")
 
 
