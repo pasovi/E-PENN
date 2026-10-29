@@ -4,7 +4,8 @@ Retrains the published baseline configuration (init seed 0, IC seed 0, the proto
 rev2/core.py), records both players' losses at every gradient step, and stores a
 parameter snapshot every `--every` gradient steps of the pursuer warm-up and every
 `--every` self-play iterations.  Then renders one frame per snapshot:
-  top left     lifted paths on the universal cover R^2
+  top left     lifted paths on the universal cover R^2, or (--left flat) the flat torus
+               [0, L)^2 with periodic boundary conditions
   top right    the embedded torus
   bottom       the full loss history L_P (pursuer) and L_E (evader) against the
                gradient-step count, with a marker at the current snapshot
@@ -18,6 +19,8 @@ Usage: python3 torch_actor/checks/animate_training.py [--every 100] [--fps 3]
        [--heads 4,2] (restrict both panels to these heads) [--heads3d 1,4,11,14,0,2]
        [--snapshots <npz>] (reuse saved snapshots instead of retraining)
        [--out training_evolution] [--format mp4|gif]
+       [--left lifted|flat]  left panel: lifted paths on R^2, or the flat torus [0,L)^2
+                             with periodic boundaries (paths wrap to the opposite side)
 mp4 needs an ffmpeg binary: the `imageio-ffmpeg` package provides one.
 """
 from __future__ import annotations
@@ -33,6 +36,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.animation import FuncAnimation, PillowWriter, FFMpegWriter  # noqa: E402
+from matplotlib.collections import LineCollection  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -104,9 +108,16 @@ def emb(x, L, R0=1.6, r=0.6):
     return np.stack([(R0 + r * np.cos(b)) * np.cos(a), (R0 + r * np.cos(b)) * np.sin(a), r * np.sin(b)], -1)
 
 
+def wrapped_segments(traj, L):
+    """Split a wrapped path (n, 2) into pieces at the seams, for a LineCollection."""
+    xs, ys = traj[:, 0], traj[:, 1]
+    brk = np.where((np.abs(np.diff(xs)) > L / 2) | (np.abs(np.diff(ys)) > L / 2))[0] + 1
+    return [traj[idx] for idx in np.split(np.arange(len(xs)), brk) if len(idx) > 1]
+
+
 # ----------------------------------------------------------------- render
 def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
-           heads3d, out_path, fps, heads_left=None, fmt="mp4"):
+           heads3d, out_path, fps, heads_left=None, fmt="mp4", left="lifted"):
     n_h = x0.shape[0]
     heads_left = list(range(n_h)) if heads_left is None else list(heads_left)
     sims = [simulate(legacy(pE), legacy(pP), x0, cfg_r) for pE, pP in snaps]
@@ -119,25 +130,49 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
     axB = fig.add_subplot(gs[1, :])
 
     # static scenery, left
-    for m in range(-2, 3):
-        for n in range(-2, 3):
-            axL.scatter(m * L, n * L, s=14, c="0.6", zorder=1)
-            axL.add_patch(plt.Rectangle((m * L, n * L), L, L, fill=False, ec="0.85", lw=0.6))
-    th = np.linspace(0, 2 * np.pi, 200)
-    axL.plot(cfg_r.reach * np.cos(th), cfg_r.reach * np.sin(th), color="0.5", ls=":", lw=1)
-    axL.set_aspect("equal"); axL.set_xlim(-2.2 * L, 2.2 * L); axL.set_ylim(-2.2 * L, 2.2 * L)
-    axL.set_xlabel("x"); axL.set_ylabel("y")
-    axL.set_title("Lifted paths on R² (solid = evader, dashed = pursuer, ○ = capture)", fontsize=10)
     linesE, linesP, caps = {}, {}, {}
-    for j in heads_left:
-        c = head_color(j)
-        tag = "capturable" if S0["capturable"][j] else "uncapturable"
-        (lE,) = axL.plot([], [], color=c, lw=1.4, label=f"head {j} ({tag}, |Δ0|={S0['d0'][j]:.2f})")
-        (lP,) = axL.plot([], [], color=c, lw=1.0, ls="--")
-        axL.scatter(*x0[j], s=30, color=c, edgecolor="k", zorder=5)
-        axL.annotate(str(j), x0[j], fontsize=7, xytext=(3, 3), textcoords="offset points")
-        cp = axL.scatter([], [], s=70, facecolors="none", edgecolors=c, lw=1.5)
-        linesE[j] = lE; linesP[j] = lP; caps[j] = cp
+    th = np.linspace(0, 2 * np.pi, 200)
+    if left == "lifted":
+        for m in range(-2, 3):
+            for n in range(-2, 3):
+                axL.scatter(m * L, n * L, s=14, c="0.6", zorder=1)
+                axL.add_patch(plt.Rectangle((m * L, n * L), L, L, fill=False, ec="0.85", lw=0.6))
+        axL.plot(cfg_r.reach * np.cos(th), cfg_r.reach * np.sin(th), color="0.5", ls=":", lw=1)
+        axL.set_aspect("equal"); axL.set_xlim(-2.2 * L, 2.2 * L); axL.set_ylim(-2.2 * L, 2.2 * L)
+        axL.set_xlabel("x"); axL.set_ylabel("y")
+        axL.set_title("Lifted paths on R² (solid = evader, dashed = pursuer, ○ = capture)", fontsize=10)
+        for j in heads_left:
+            c = head_color(j)
+            tag = "capturable" if S0["capturable"][j] else "uncapturable"
+            (lE,) = axL.plot([], [], color=c, lw=1.4, label=f"head {j} ({tag}, |Δ0|={S0['d0'][j]:.2f})")
+            (lP,) = axL.plot([], [], color=c, lw=1.0, ls="--")
+            axL.scatter(*x0[j], s=30, color=c, edgecolor="k", zorder=5)
+            axL.annotate(str(j), x0[j], fontsize=7, xytext=(3, 3), textcoords="offset points")
+            cp = axL.scatter([], [], s=70, facecolors="none", edgecolors=c, lw=1.5)
+            linesE[j] = lE; linesP[j] = lP; caps[j] = cp
+    else:
+        # the flat torus: fundamental domain [0, L)^2, opposite sides identified
+        for cx in (0, L):
+            for cy in (0, L):
+                axL.plot(cx + cfg_r.reach * np.cos(th), cy + cfg_r.reach * np.sin(th), color="0.6", lw=0.8, ls=":")
+        axL.scatter(0, 0, s=60, c="tab:red", marker="s", edgecolor="k", zorder=5, label="pursuer start (all heads)")
+        axL.set_aspect("equal"); axL.set_xlim(0, L); axL.set_ylim(0, L)
+        axL.set_xticks([0, L / 2, L]); axL.set_yticks([0, L / 2, L])
+        for sp in axL.spines.values():
+            sp.set_linewidth(1.6); sp.set_edgecolor("0.3")
+        axL.set_xlabel("x  (x = 0 and x = L identified)"); axL.set_ylabel("y  (y = 0 and y = L identified)")
+        axL.set_title("Flat torus [0, L)² with periodic boundaries (solid = evader, dashed = pursuer, ○ = capture)",
+                      fontsize=10)
+        for j in heads_left:
+            c = head_color(j)
+            tag = "capturable" if S0["capturable"][j] else "uncapturable"
+            lE = LineCollection([], colors=[c], linewidths=1.4, label=f"head {j} ({tag}, |Δ0|={S0['d0'][j]:.2f})")
+            lP = LineCollection([], colors=[c], linewidths=1.0, linestyles="--")
+            axL.add_collection(lE); axL.add_collection(lP)
+            axL.scatter(*(x0[j] % L), s=30, color=c, edgecolor="k", zorder=5)
+            axL.annotate(str(j), x0[j] % L, fontsize=7, xytext=(3, 3), textcoords="offset points")
+            cp = axL.scatter([], [], s=70, facecolors="none", edgecolors=c, lw=1.5)
+            linesE[j] = lE; linesP[j] = lP; caps[j] = cp
     axL.legend(fontsize=6.5 if len(heads_left) > 6 else 8, loc="upper right",
                ncol=2 if len(heads_left) > 6 else 1, framealpha=0.9, title="colour = head")
 
@@ -184,9 +219,14 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
     def update(i):
         S = sims[i]
         for j in heads_left:
-            linesE[j].set_data(S["xE_l"][j, :, 0], S["xE_l"][j, :, 1])
-            linesP[j].set_data(S["xP_l"][j, :, 0], S["xP_l"][j, :, 1])
-            caps[j].set_offsets(S["xP_l"][j, S["kc"][j]][None, :] if S["captured"][j] else np.empty((0, 2)))
+            if left == "lifted":
+                linesE[j].set_data(S["xE_l"][j, :, 0], S["xE_l"][j, :, 1])
+                linesP[j].set_data(S["xP_l"][j, :, 0], S["xP_l"][j, :, 1])
+                caps[j].set_offsets(S["xP_l"][j, S["kc"][j]][None, :] if S["captured"][j] else np.empty((0, 2)))
+            else:
+                linesE[j].set_segments(wrapped_segments(S["xE"][j] % L, L))
+                linesP[j].set_segments(wrapped_segments(S["xP"][j] % L, L))
+                caps[j].set_offsets((S["xP"][j, S["kc"][j]] % L)[None, :] if S["captured"][j] else np.empty((0, 2)))
         for j in heads3d:
             eE = emb(S["xE"][j], L); eP = emb(S["xP"][j], L)
             lines3E[j].set_data(eE[:, 0], eE[:, 1]); lines3E[j].set_3d_properties(eE[:, 2])
@@ -227,6 +267,7 @@ def main():
     ap.add_argument("--snapshots", default=None, help="reuse a saved training_snapshots.npz")
     ap.add_argument("--out", default="training_evolution")
     ap.add_argument("--format", default="mp4", choices=["mp4", "gif"])
+    ap.add_argument("--left", default="lifted", choices=["lifted", "flat"])
     a = ap.parse_args()
     out = os.path.join(HERE, "figs", a.name)
     os.makedirs(out, exist_ok=True)
@@ -255,7 +296,7 @@ def main():
     heads3d = heads_left if heads_left is not None else [int(h) for h in a.heads3d.split(",")]
     path = os.path.join(out, f"{a.out}.{a.format}")
     render(snaps, labels, snap_step, hist, x0, RunConfig(), cfg, heads3d, path, a.fps,
-           heads_left=heads_left, fmt=a.format)
+           heads_left=heads_left, fmt=a.format, left=a.left)
     print(f"rendered {len(snaps)} frames to {path} in {time.time() - t0:.0f} s")
 
 
