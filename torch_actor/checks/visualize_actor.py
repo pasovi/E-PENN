@@ -94,6 +94,14 @@ def simulate(pE, pP, x0, cfg: RunConfig):
                 chart_opt=chart_opt, chart_cap=chart_cap)
 
 
+HEAD_CMAP = plt.get_cmap("tab20")
+
+
+def head_color(j):
+    """The colour of head j in every figure (lifted plane, 3-D torus, per-head panels)."""
+    return HEAD_CMAP(j % 20)
+
+
 def constancy(u):
     """eta = |<u>_t|^2 per head (1 iff constant heading)."""
     ub = u.mean(axis=1)
@@ -142,7 +150,10 @@ def fig_torus(S, cfg, path):
         ax.set_xticks([]); ax.set_yticks([])
         cap = "capturable" if S["capturable"][j] else "uncapturable"
         tc = f"T_c={S['Tc'][j]:.2f}, V*={S['Vstar'][j]:.2f}" if S["captured"][j] else "no capture"
-        ax.set_title(f"head {j}  |Δ0|={S['d0'][j]:.2f} ({cap})\n{tc}", fontsize=8.5)
+        ax.set_title(f"head {j}  |Δ0|={S['d0'][j]:.2f} ({cap})\n{tc}", fontsize=8.5,
+                     color=head_color(j), fontweight="bold")
+        for sp in ax.spines.values():
+            sp.set_edgecolor(head_color(j)); sp.set_linewidth(2.5)
         if j == 0:
             ax.legend(fontsize=7, loc="lower right", framealpha=0.9)
     for j in range(n_h, len(axes)):
@@ -164,10 +175,9 @@ def fig_lifted(S, cfg, path):
                                        ec="0.85", lw=0.6))
     th = np.linspace(0, 2 * np.pi, 200)
     ax.plot(cfg.reach * np.cos(th), cfg.reach * np.sin(th), color="0.5", ls=":", lw=1)
-    cmap = plt.get_cmap("tab20")
     for j in range(n_h):
-        c = cmap(j % 20)
-        ax.plot(*S["xE_l"][j].T, color=c, lw=1.4)
+        c = head_color(j)
+        ax.plot(*S["xE_l"][j].T, color=c, lw=1.4, label=f"head {j}")
         ax.plot(*S["xP_l"][j].T, color=c, lw=1.0, ls="--")
         ax.scatter(*S["xE_l"][j, 0], s=30, color=c, edgecolor="k", zorder=5)
         ax.annotate(str(j), S["xE_l"][j, 0], fontsize=7, xytext=(3, 3), textcoords="offset points")
@@ -175,6 +185,7 @@ def fig_lifted(S, cfg, path):
             ax.scatter(*S["xP_l"][j, S["kc"][j]], s=70, facecolors="none", edgecolors=c, lw=1.5)
     ax.set_aspect("equal")
     ax.set_xlim(-2.2 * cfg.L, 2.2 * cfg.L); ax.set_ylim(-2.2 * cfg.L, 2.2 * cfg.L)
+    ax.legend(fontsize=7, loc="upper right", ncol=2, framealpha=0.9, title="colour = head")
     ax.set_title("Lifted paths on the universal cover R² (solid = evader, dashed = pursuer,\n"
                  "grey dots = images of the pursuer start, ○ = capture; the image the pursuer "
                  "reaches is its 'chart')", fontsize=10)
@@ -205,9 +216,8 @@ def fig_torus3d(S, cfg, path, heads=None, R0=1.6, r=0.6):
                     r * np.sin(B), color="0.9", alpha=0.25, linewidth=0, shade=True)
     ax.plot_wireframe((R0 + r * np.cos(B)) * np.cos(A), (R0 + r * np.cos(B)) * np.sin(A),
                       r * np.sin(B), color="0.7", lw=0.3, rstride=3, cstride=6, alpha=0.5)
-    cmap = plt.get_cmap("tab10")
-    for i, j in enumerate(heads):
-        c = cmap(i % 10)
+    for j in heads:
+        c = head_color(j)
         eE = emb(S["xE"][j]); eP = emb(S["xP"][j])
         ax.plot(*eE.T, color=c, lw=2, label=f"head {j} ({'captured' if S['captured'][j] else 'escapes'})")
         ax.plot(*eP.T, color=c, lw=1.4, ls="--")
@@ -215,7 +225,8 @@ def fig_torus3d(S, cfg, path, heads=None, R0=1.6, r=0.6):
     ax.scatter(*emb(np.zeros(2)), color="tab:red", marker="s", s=60, edgecolor="k", label="pursuer start")
     ax.set_box_aspect((1, 1, 0.4)); ax.set_axis_off()
     ax.legend(fontsize=8, loc="upper left")
-    ax.set_title("Embedded torus: evader (solid) and pursuer (dashed) for a few heads")
+    ax.set_title("Embedded torus: evader (solid) and pursuer (dashed) for a few heads\n"
+                 "(same colour per head as in the lifted-plane figure)")
     fig.tight_layout()
     fig.savefig(path, dpi=130, bbox_inches="tight"); plt.close(fig)
 
@@ -247,7 +258,8 @@ def fig_headings(S, cfg, pE, pP, path):
         if S["captured"][j]:
             ax.axvline(S["Tc"][j], color="g", lw=0.8, alpha=0.7)
         ax.set_ylim(sad - np.pi, sad + np.pi)
-        ax.set_title(f"head {j}" + (" (captured)" if S["captured"][j] else " (escapes)"), fontsize=8.5)
+        ax.set_title(f"head {j}" + (" (captured)" if S["captured"][j] else " (escapes)"),
+                     fontsize=8.5, color=head_color(j), fontweight="bold")
         ax.tick_params(labelsize=7)
         if j == 0:
             ax.legend(fontsize=6, loc="upper left")
