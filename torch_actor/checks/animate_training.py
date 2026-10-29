@@ -10,6 +10,8 @@ Outputs (under checks/figs/<name>/):
   training_snapshots.npz   all snapshots (BE, bE, WE, BP, bP, WP stacked, with labels)
   training_evolution.gif   the animation
 Usage: python3 torch_actor/checks/animate_training.py [--every 100] [--fps 8] [--heads3d 1,4,11,0,2,3]
+       [--heads 1,0] (restrict BOTH panels to these heads) [--snapshots <npz>] (reuse saved
+       snapshots instead of retraining) [--out training_evolution]
 """
 from __future__ import annotations
 
@@ -72,9 +74,11 @@ def emb(x, L, R0=1.6, r=0.6):
     return np.stack([(R0 + r * np.cos(b)) * np.cos(a), (R0 + r * np.cos(b)) * np.sin(a), r * np.sin(b)], -1)
 
 
-def render(snaps, labels, x0, cfg_r: RunConfig, heads3d, out_gif, fps):
+def render(snaps, labels, x0, cfg_r: RunConfig, heads3d, out_gif, fps, heads_left=None):
     n_h = x0.shape[0]
+    heads_left = list(range(n_h)) if heads_left is None else list(heads_left)
     sims = [simulate(legacy(pE), legacy(pP), x0, cfg_r) for pE, pP in snaps]
+    S0 = sims[0]
     L = cfg_r.L
     fig = plt.figure(figsize=(15, 7.2))
     axL = fig.add_subplot(1, 2, 1)
@@ -90,16 +94,18 @@ def render(snaps, labels, x0, cfg_r: RunConfig, heads3d, out_gif, fps):
     axL.set_aspect("equal"); axL.set_xlim(-2.2 * L, 2.2 * L); axL.set_ylim(-2.2 * L, 2.2 * L)
     axL.set_xlabel("x"); axL.set_ylabel("y")
     axL.set_title("Lifted paths on R² (solid = evader, dashed = pursuer, ○ = capture)", fontsize=10)
-    linesE, linesP, caps = [], [], []
-    for j in range(n_h):
+    linesE, linesP, caps = {}, {}, {}
+    for j in heads_left:
         c = head_color(j)
-        (lE,) = axL.plot([], [], color=c, lw=1.4, label=f"head {j}")
+        tag = "capturable" if S0["capturable"][j] else "uncapturable"
+        (lE,) = axL.plot([], [], color=c, lw=1.4, label=f"head {j} ({tag}, |Δ0|={S0['d0'][j]:.2f})")
         (lP,) = axL.plot([], [], color=c, lw=1.0, ls="--")
         axL.scatter(*x0[j], s=30, color=c, edgecolor="k", zorder=5)
         axL.annotate(str(j), x0[j], fontsize=7, xytext=(3, 3), textcoords="offset points")
         cp = axL.scatter([], [], s=70, facecolors="none", edgecolors=c, lw=1.5)
-        linesE.append(lE); linesP.append(lP); caps.append(cp)
-    axL.legend(fontsize=6.5, loc="upper right", ncol=2, framealpha=0.9, title="colour = head")
+        linesE[j] = lE; linesP[j] = lP; caps[j] = cp
+    axL.legend(fontsize=6.5 if len(heads_left) > 6 else 8, loc="upper right",
+               ncol=2 if len(heads_left) > 6 else 1, framealpha=0.9, title="colour = head")
 
     # static scenery, right
     A, B = np.meshgrid(np.linspace(0, 2 * np.pi, 60), np.linspace(0, 2 * np.pi, 30))
@@ -124,7 +130,7 @@ def render(snaps, labels, x0, cfg_r: RunConfig, heads3d, out_gif, fps):
 
     def update(i):
         S = sims[i]
-        for j in range(n_h):
+        for j in heads_left:
             linesE[j].set_data(S["xE_l"][j, :, 0], S["xE_l"][j, :, 1])
             linesP[j].set_data(S["xP_l"][j, :, 0], S["xP_l"][j, :, 1])
             if S["captured"][j]:
@@ -140,7 +146,8 @@ def render(snaps, labels, x0, cfg_r: RunConfig, heads3d, out_gif, fps):
         sup.set_text(f"Baseline training (init seed 0, IC seed 0): {labels[i]}   |   "
                      f"captured {n_cap} of {n_h} heads ({n_cap_c} of the {n_capable} capturable)   |   "
                      f"frame {i + 1}/{len(sims)}")
-        return linesE + linesP + caps + list(lines3E.values()) + list(lines3P.values()) + [sup]
+        return (list(linesE.values()) + list(linesP.values()) + list(caps.values())
+                + list(lines3E.values()) + list(lines3P.values()) + [sup])
 
     anim = FuncAnimation(fig, update, frames=len(sims), blit=False)
     anim.save(out_gif, writer=PillowWriter(fps=fps), dpi=90)
@@ -153,22 +160,34 @@ def main():
     ap.add_argument("--fps", type=int, default=8)
     ap.add_argument("--heads3d", default="1,4,11,14,0,2")
     ap.add_argument("--name", default="baseline")
+    ap.add_argument("--heads", default=None, help="restrict both panels to these heads, e.g. 1,0")
+    ap.add_argument("--snapshots", default=None, help="reuse a saved training_snapshots.npz")
+    ap.add_argument("--out", default="training_evolution")
     a = ap.parse_args()
     out = os.path.join(HERE, "figs", a.name)
     os.makedirs(out, exist_ok=True)
     cfg = pt.Config()
+    if a.snapshots:
+        z = np.load(a.snapshots)
+        labels = [str(l) for l in z["labels"]]; x0 = z["x_E0"]
+        snaps = [({"B": z["BE"][i][None], "b": z["bE"][i][None], "W": z["WE"][i][None]},
+                  {"B": z["BP"][i][None], "b": z["bP"][i][None], "W": z["WP"][i][None]})
+                 for i in range(len(labels))]
+        print(f"loaded {len(snaps)} snapshots from {a.snapshots}", flush=True)
+    else:
+        t0 = time.time()
+        snaps, labels, x0 = train_with_snapshots(cfg, a.every)
+        print(f"trained with {len(snaps)} snapshots in {time.time() - t0:.0f} s", flush=True)
+        np.savez_compressed(os.path.join(out, "training_snapshots.npz"),
+                            labels=np.array(labels), x_E0=x0,
+                            BE=np.stack([s[0]["B"][0] for s in snaps]), bE=np.stack([s[0]["b"][0] for s in snaps]),
+                            WE=np.stack([s[0]["W"][0] for s in snaps]), BP=np.stack([s[1]["B"][0] for s in snaps]),
+                            bP=np.stack([s[1]["b"][0] for s in snaps]), WP=np.stack([s[1]["W"][0] for s in snaps]))
     t0 = time.time()
-    snaps, labels, x0 = train_with_snapshots(cfg, a.every)
-    print(f"trained with {len(snaps)} snapshots in {time.time() - t0:.0f} s", flush=True)
-    np.savez_compressed(os.path.join(out, "training_snapshots.npz"),
-                        labels=np.array(labels), x_E0=x0,
-                        BE=np.stack([s[0]["B"][0] for s in snaps]), bE=np.stack([s[0]["b"][0] for s in snaps]),
-                        WE=np.stack([s[0]["W"][0] for s in snaps]), BP=np.stack([s[1]["B"][0] for s in snaps]),
-                        bP=np.stack([s[1]["b"][0] for s in snaps]), WP=np.stack([s[1]["W"][0] for s in snaps]))
-    t0 = time.time()
-    heads3d = [int(h) for h in a.heads3d.split(",")]
-    gif = os.path.join(out, "training_evolution.gif")
-    render(snaps, labels, x0, RunConfig(), heads3d, gif, a.fps)
+    heads_left = [int(h) for h in a.heads.split(",")] if a.heads else None
+    heads3d = heads_left if heads_left is not None else [int(h) for h in a.heads3d.split(",")]
+    gif = os.path.join(out, a.out + ".gif")
+    render(snaps, labels, x0, RunConfig(), heads3d, gif, a.fps, heads_left=heads_left)
     print(f"rendered {len(snaps)} frames to {gif} in {time.time() - t0:.0f} s")
 
 
