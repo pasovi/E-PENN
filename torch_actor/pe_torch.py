@@ -9,13 +9,19 @@ changes that do not alter the mathematics:
     positions are kept on the universal cover; the loss takes the minimum-image
     displacement, so the per-step wrap of the original is unnecessary);
   * every tensor carries a leading "run" axis R, so R independent runs
-    (init seed x IC seed) train in one tensor program.  R = 1 is one run, and the
-    per-run gradients are identical to training the runs separately because the
-    batched loss is the *sum* over runs and Adam is elementwise.
+    (init seed x IC seed, or different lam_d / v_P / IC sets) train in one tensor
+    program.  R = 1 is one run, and the per-run gradients are identical to training
+    the runs separately because the batched loss is the *sum* over runs and Adam is
+    elementwise.
 
 Parameter initialisation and the IC sampler reuse NumPy's `default_rng` streams
 exactly as the original code does, so (init_seed, ic_seed) = (0, 0) starts from
 the published baseline's initial state.
+
+Per-run variations used by the paper's control arms are supported through
+`train(...)`: `lam_d` and `v_P` may be arrays of length R, `symmetric=True`
+mirrors the survival bonus into the evader loss (C2), `lam_d_schedule(it)` anneals
+the shaping term (E7), `states` gives explicit (pE, pP, x0) per run (C4, E1, C7).
 """
 from __future__ import annotations
 
@@ -67,6 +73,10 @@ class Config:
         return 2 * self.K + 1
 
     @property
+    def dv(self) -> float:
+        return self.v_P - self.v_E
+
+    @property
     def reach(self) -> float:
         return (self.v_P - self.v_E) * self.t_max + self.eps
 
@@ -113,7 +123,7 @@ def initial_state_np(cfg: Config, init_seed: int, ic_seed: int,
 def stack_runs(states, device, dtype):
     """List of (pE, pP, x0) -> batched torch parameters with requires_grad, and x0."""
     def stack(key, which):
-        arr = np.stack([s[which][key] for s in states])
+        arr = np.stack([np.asarray(s[which][key], dtype=np.float64) for s in states])
         return torch.tensor(arr, device=device, dtype=dtype, requires_grad=True)
     pE = {k: stack(k, 0) for k in ("B", "b", "W")}
     pP = {k: stack(k, 1) for k in ("B", "b", "W")}
@@ -138,26 +148,42 @@ def forward_dirs(p: dict, phi: torch.Tensor):
     return u, H, z
 
 
-def rollout(uE: torch.Tensor, uP: torch.Tensor, x0: torch.Tensor, cfg: Config):
+def _per_run(x, ref: torch.Tensor):
+    """float or (R,) array -> tensor broadcastable over (R, n_h, T, ...)."""
+    if x is None:
+        return None
+    if np.isscalar(x):
+        return float(x)
+    return torch.as_tensor(np.asarray(x), device=ref.device, dtype=ref.dtype)[:, None, None]
+
+
+def rollout(uE: torch.Tensor, uP: torch.Tensor, x0: torch.Tensor, cfg: Config, v_P=None):
     """Trapezoidal (midpoint-average) step, as the original, on the universal cover.
-    Returns lifted positions xE, xP: (R, n_h, n_t+1, 2)."""
+    Returns lifted positions xE, xP: (R, n_h, n_t+1, 2).  v_P: float or (R,) array."""
     dt = cfg.t_max / cfg.n_t
+    vP = cfg.v_P if v_P is None else _per_run(v_P, uP)
+    vP = vP[..., None] if torch.is_tensor(vP) else vP
     incE = dt * cfg.v_E * 0.5 * (uE[:, :, :-1] + uE[:, :, 1:])
-    incP = dt * cfg.v_P * 0.5 * (uP[:, :, :-1] + uP[:, :, 1:])
+    incP = dt * vP * 0.5 * (uP[:, :, :-1] + uP[:, :, 1:])
     zero = torch.zeros_like(incE[:, :, :1])
     xE = x0[:, :, None, :] + torch.cat([zero, torch.cumsum(incE, dim=2)], dim=2)
     xP = torch.cat([zero, torch.cumsum(incP, dim=2)], dim=2)
     return xE, xP
 
 
-def game_loss(xE: torch.Tensor, xP: torch.Tensor, cfg: Config):
-    """Per-run losses L_E, L_P: (R,), plus survival S and torus distance d for diagnostics.
+def game_loss(xE: torch.Tensor, xP: torch.Tensor, cfg: Config, lam_d=None,
+              symmetric: bool = False):
+    """Per-run losses L_E, L_P: (R,), plus survival S and torus distance d.
 
     L_P = <T_soft + lam_nc S(t_max) t_max + lam_d <d>_t>_heads
-    L_E = <-T_soft - lam_d <d>_t>_heads
+    L_E = <-T_soft - lam_d <d>_t>_heads                  (baseline, one-sided bonus)
+    L_E = -L_P                                           (symmetric=True, C2)
+    lam_d: float or (R,) array (per run).
     """
     dt = cfg.t_max / cfg.n_t
     L = cfg.L
+    ld = cfg.lam_d if lam_d is None else _per_run(lam_d, xE)
+    ld = ld[..., 0] if torch.is_tensor(ld) else ld                      # (R,1)
     disp = torch.remainder(xE - xP + L / 2.0, L) - L / 2.0           # min-image
     d2 = (disp ** 2).sum(-1)                                          # (R, n_h, T)
     d = torch.sqrt(d2 + 1e-12)
@@ -166,8 +192,12 @@ def game_loss(xE: torch.Tensor, xP: torch.Tensor, cfg: Config):
     S = torch.exp(torch.cumsum(log_one_minus_p, dim=-1))
     ET = dt * (0.5 * S[..., 0] + S[..., 1:-1].sum(-1) + 0.5 * S[..., -1])
     d_mean = d.mean(-1)
-    L_P = (ET + cfg.lam_nc * S[..., -1] * cfg.t_max + cfg.lam_d * d_mean).mean(-1)
-    L_E = (-ET - cfg.lam_d * d_mean).mean(-1)
+    nc = cfg.lam_nc * S[..., -1] * cfg.t_max
+    L_P = (ET + nc + ld * d_mean).mean(-1)
+    if symmetric:
+        L_E = -L_P
+    else:
+        L_E = (-ET - ld * d_mean).mean(-1)
     return L_E, L_P, S, d
 
 
@@ -177,16 +207,21 @@ def make_adam(p: dict, lr: float):
 
 
 def step(who: str, pE: dict, pP: dict, x0: torch.Tensor, phi: torch.Tensor,
-         cfg: Config, optE, optP):
-    """One gradient step of player `who` in every run (the other player is frozen)."""
-    uE, _, _ = forward_dirs(pE, phi)
+         cfg: Config, optE, optP, lam_d=None, v_P=None, symmetric: bool = False,
+         uE_fixed: torch.Tensor | None = None):
+    """One gradient step of player `who` in every run (the other player is frozen).
+    uE_fixed: (R, n_h, T, 2) replaces the evader network (oracle arm)."""
+    if uE_fixed is None:
+        uE, _, _ = forward_dirs(pE, phi)
+    else:
+        uE = uE_fixed
     uP, _, _ = forward_dirs(pP, phi)
     if who == "P":
         uE = uE.detach()
     else:
         uP = uP.detach()
-    xE, xP = rollout(uE, uP, x0, cfg)
-    L_E, L_P, _, _ = game_loss(xE, xP, cfg)
+    xE, xP = rollout(uE, uP, x0, cfg, v_P=v_P)
+    L_E, L_P, _, _ = game_loss(xE, xP, cfg, lam_d=lam_d, symmetric=symmetric)
     loss = L_P.sum() if who == "P" else L_E.sum()    # sum: per-run gradients untouched
     opt = optP if who == "P" else optE
     opt.zero_grad(set_to_none=True)
@@ -199,42 +234,58 @@ def to_numpy(p: dict) -> dict:
     return {k: v.detach().cpu().numpy().copy() for k, v in p.items()}
 
 
-def train(cfg: Config, runs: list, device="cpu", dtype=torch.float64,
-          snapshot_fn=None, log_every: int = 0):
-    """Train len(runs) independent runs in one batched program.
+def train(cfg: Config, runs: list | None = None, device="cpu", dtype=torch.float64,
+          snapshot_fn=None, log_every: int = 0, states: list | None = None,
+          lam_d=None, v_P=None, symmetric: bool = False, lam_d_schedule=None,
+          ckpt_at=None, snapshot_every=None):
+    """Train R independent runs in one batched program.
 
-    runs : list of (init_seed, ic_seed) or (init_seed, ic_seed, perturb_seed, perturb_scale)
+    runs    : list of (init_seed, ic_seed[, perturb_seed, perturb_scale]); ignored if
+              `states` is given.
+    states  : list of (pE, pP, x0) NumPy triples (explicit ICs or warm starts).
     snapshot_fn : callable(pE, pP, x0, it, cfg) -> list of dicts (one per run),
-                  called after warm-up (it = 0) and every cfg.snapshot_every iterations.
-    Returns dict with final params (numpy, run axis first), x0, snapshots and
-    ckpts {it: (pE, pP)} at cfg.ckpt_at.
+              called after warm-up (it = 0) and every `snapshot_every` iterations.
+    lam_d, v_P : float or (R,) array; lam_d_schedule(it) overrides lam_d for the
+              whole batch at self-play iteration it (warm-up uses lam_d).
+    Returns dict with final params (NumPy, run axis first), x0, snapshots and
+    ckpts {it: (pE, pP)} at `ckpt_at` (default cfg.ckpt_at).
     """
-    states = [initial_state_np(cfg, *r) for r in runs]
+    if states is None:
+        states = [initial_state_np(cfg, *r) for r in runs]
+    R = len(states)
+    ckpt_at = tuple(cfg.ckpt_at if ckpt_at is None else ckpt_at)
+    snapshot_every = cfg.snapshot_every if snapshot_every is None else snapshot_every
     pE, pP, x0 = stack_runs(states, device, dtype)
     t = torch.linspace(0.0, cfg.t_max, cfg.n_t + 1, device=device, dtype=dtype)
     phi = fourier_features(t, cfg.t_max, cfg.K)
+    kw = dict(lam_d=lam_d, v_P=v_P, symmetric=symmetric)
 
     optE, optP = make_adam(pE, cfg.lr_E), make_adam(pP, cfg.lr_P)
     t0 = time.time()
     for _ in range(cfg.warmup):
-        step("P", pE, pP, x0, phi, cfg, optE, optP)
+        step("P", pE, pP, x0, phi, cfg, optE, optP, **kw)
 
     snapshots, ckpts = [], {}
     if snapshot_fn is not None:
         snapshots.append(snapshot_fn(pE, pP, x0, 0, cfg))
+    if 0 in ckpt_at:
+        ckpts[0] = (to_numpy(pE), to_numpy(pP))
+    loss = torch.zeros(())
     for it in range(1, cfg.n_iters + 1):
         if cfg.adam_reset_every and it > 1 and (it - 1) % cfg.adam_reset_every == 0:
             optE, optP = make_adam(pE, cfg.lr_E), make_adam(pP, cfg.lr_P)
+        if lam_d_schedule is not None:
+            kw["lam_d"] = lam_d_schedule(it)
         for _ in range(cfg.n_P_steps):
-            step("P", pE, pP, x0, phi, cfg, optE, optP)
+            step("P", pE, pP, x0, phi, cfg, optE, optP, **kw)
         for _ in range(cfg.n_E_steps):
-            loss = step("E", pE, pP, x0, phi, cfg, optE, optP)
-        if snapshot_fn is not None and it % cfg.snapshot_every == 0:
+            loss = step("E", pE, pP, x0, phi, cfg, optE, optP, **kw)
+        if snapshot_fn is not None and snapshot_every and it % snapshot_every == 0:
             snapshots.append(snapshot_fn(pE, pP, x0, it, cfg))
-        if it in cfg.ckpt_at:
+        if it in ckpt_at:
             ckpts[it] = (to_numpy(pE), to_numpy(pP))
         if log_every and (it % log_every == 0 or it == cfg.n_iters):
-            print(f"  it {it:6d}  mean L_E {loss.item() / len(runs):+.4f}  "
+            print(f"  it {it:6d}  mean L_E {loss.item() / R:+.4f}  "
                   f"[{time.time() - t0:.0f}s]", flush=True)
     return {"pE": to_numpy(pE), "pP": to_numpy(pP), "x0": x0.cpu().numpy(),
             "snapshots": snapshots, "ckpts": ckpts, "runs": runs,
@@ -249,33 +300,36 @@ def _pr(ev: torch.Tensor) -> torch.Tensor:
 
 @torch.no_grad()
 def light_metrics(pE: dict, pP: dict, x0: torch.Tensor, it: int, cfg: Config,
-                  n_dense: int = 512) -> list:
+                  n_dense: int = 512, v_P=None) -> list:
     """Same formulas as rev2/metrics.light_metrics, for every run at once:
-    Gram PR and constancy of the unit-heading ensemble, PR of the time-centred latent,
-    temporal PR of u, number of captured heads.  Returns one dict per run."""
+    Gram PR and constancy of the unit-heading ensemble, PR of the time-centred
+    latent, temporal PR of u and of z, number of captured heads.  One dict per run."""
     dev, dt_ = x0.device, x0.dtype
     td = torch.linspace(0.0, cfg.t_max, n_dense, device=dev, dtype=dt_)
     phid = fourier_features(td, cfg.t_max, cfg.K)
     out = {"it": it}
     for a, p in (("E", pE), ("P", pP)):
-        u, H, _ = forward_dirs(p, phid)                        # (R,n_h,T,2), (R,T,n_b)
+        u, H, z = forward_dirs(p, phid)                        # (R,n_h,T,2), (R,T,n_b)
         R, n_h, T, _ = u.shape
         U = u.reshape(R, n_h, T * 2) / math.sqrt(T)
         ubar = u.mean(2)
         Xu = u.permute(0, 2, 1, 3).reshape(R, T, -1)
         Xu = Xu - Xu.mean(1, keepdim=True)
+        Xz = z.permute(0, 2, 1, 3).reshape(R, T, -1)
+        Xz = Xz - Xz.mean(1, keepdim=True)
         Hc = H - H.mean(1, keepdim=True)
         # eigvalsh is not implemented on MPS; the matrices are tiny, so do them on CPU
         gram = torch.linalg.eigvalsh((U @ U.transpose(1, 2)).cpu())
         tpr = torch.linalg.eigvalsh((Xu.transpose(1, 2) @ Xu / T).cpu())
+        tprz = torch.linalg.eigvalsh((Xz.transpose(1, 2) @ Xz / T).cpu())
         prH = torch.linalg.eigvalsh((Hc.transpose(1, 2) @ Hc).cpu())
         out[a] = {"gram_pr": _pr(gram), "constancy": (ubar ** 2).sum(-1).mean(-1),
-                  "tpr_U": _pr(tpr), "pr_H": _pr(prH)}
+                  "tpr_U": _pr(tpr), "tpr_Z": _pr(tprz), "pr_H": _pr(prH)}
     tg = torch.linspace(0.0, cfg.t_max, cfg.n_t + 1, device=dev, dtype=dt_)
     phig = fourier_features(tg, cfg.t_max, cfg.K)
     uE, _, _ = forward_dirs(pE, phig)
     uP, _, _ = forward_dirs(pP, phig)
-    xE, xP = rollout(uE, uP, x0, cfg)
+    xE, xP = rollout(uE, uP, x0, cfg, v_P=v_P)
     _, _, _, d = game_loss(xE, xP, cfg)
     n_cap = (d.min(-1).values <= cfg.eps).sum(-1)
     recs = []
@@ -288,20 +342,32 @@ def light_metrics(pE: dict, pP: dict, x0: torch.Tensor, it: int, cfg: Config,
 
 
 # ------------------------------------------------------------ checkpoints
-def save_run_ckpt(path: str, cfg: Config, out: dict, r: int) -> None:
+def save_run_ckpt(path: str, cfg: Config, out: dict, r: int, extra: dict | None = None) -> None:
     """Write run r of a batched result in the key layout of rev2/core.save_ckpts
     (BE_<it>, bE_<it>, WE_<it>, BP_<it>, ..., x_E0, config), so rev2/core.load_ckpt
-    and rev2/metrics.py read it unchanged."""
+    and rev2/metrics.py read it unchanged.  Also writes the legacy keys (BE, bE, WE,
+    BP, bP, WP, iter0) for the final parameters, so the original analysis scripts
+    and viz/visualize_actor.py read it too."""
     arrs = {"x_E0": out["x0"][r], "config": np.array(repr(asdict(cfg)))}
     for it, (pE, pP) in out["ckpts"].items():
         arrs.update({f"BE_{it}": pE["B"][r], f"bE_{it}": pE["b"][r], f"WE_{it}": pE["W"][r],
                      f"BP_{it}": pP["B"][r], f"bP_{it}": pP["b"][r], f"WP_{it}": pP["W"][r]})
+    arrs.update({"BE": out["pE"]["B"][r], "bE": out["pE"]["b"][r], "WE": out["pE"]["W"][r],
+                 "BP": out["pP"]["B"][r], "bP": out["pP"]["b"][r], "WP": out["pP"]["W"][r],
+                 "iter0": np.array(cfg.n_iters)})
+    if extra:
+        arrs.update(extra)
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     np.savez_compressed(path, **arrs)
 
 
-def load_ckpt(path: str, it: int = 14000):
+def load_ckpt(path: str, it: int | None = None):
+    """(pE, pP, x0) with keys B, b, W.  it=None -> final (legacy keys)."""
     z = np.load(path)
-    pE = {"B": z[f"BE_{it}"], "b": z[f"bE_{it}"], "W": z[f"WE_{it}"]}
-    pP = {"B": z[f"BP_{it}"], "b": z[f"bP_{it}"], "W": z[f"WP_{it}"]}
+    if it is None:
+        pE = {"B": z["BE"], "b": z["bE"], "W": z["WE"]}
+        pP = {"B": z["BP"], "b": z["bP"], "W": z["WP"]}
+    else:
+        pE = {"B": z[f"BE_{it}"], "b": z[f"bE_{it}"], "W": z[f"WE_{it}"]}
+        pP = {"B": z[f"BP_{it}"], "b": z[f"bP_{it}"], "W": z[f"WP_{it}"]}
     return pE, pP, z["x_E0"]

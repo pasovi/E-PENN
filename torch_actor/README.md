@@ -16,8 +16,15 @@ Written and tested with torch 2.15, Python 3.13, on an Apple M4 Max (29 Oct 2026
 | `bench.py` | ms per step for NumPy, torch CPU, torch MPS/CUDA, batched runs; ATen op count per step |
 | `run_grid.py` | train an init-seed x IC-seed grid in one batched program; writes `.npz` per run + `summary.json` |
 | `compare_r1.py` | ensemble statistics of a grid vs the NumPy R1 grid (`rev2/results/r1/`) |
-| `numpy_reference.py` | verbatim copy of `pursuit_evasion_numpy.py`, used only by the test and the benchmark |
-| `results/` | outputs of the runs reported below (not needed to run anything) |
+| `numpy_reference.py` | verbatim copy of `pursuit_evasion_numpy.py`, used only by the test, the benchmark and `checks/` |
+| `results/` | outputs of the timing runs reported below (not needed to run anything) |
+| `experiments.py` | every actor experiment of the draft (R1 grid, C2-C7, E1/E1b/E7, Δv sweep, protocols, honest corrections, Shapley) -> `paper/` |
+| `protocols.py` | Section 8 arms: oracle, simultaneous GDA, ABR, extragradient, optimistic GDA, averaging, grouped Shapley |
+| `analysis.py`, `figures.py` | the draft's statistics (`paper/results/table1.json`) and its eight figures (`paper/figs/`) |
+| `checks/` | the checking layer ported: `core.py`, `metrics.py`, `analyze_r1.py` (from `rev2/`) and `visualize_actor.py` (from `viz/`), with their R1 outputs and figures |
+| `paper/` | checkpoints, results, figures and `README.md` with the reproduced numbers against the draft |
+
+The reproduction of the draft's experiments is described in [paper/README.md](paper/README.md).
 
 ```bash
 python3 torch_actor/test_parity.py 500

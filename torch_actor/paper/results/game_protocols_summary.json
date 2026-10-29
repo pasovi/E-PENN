@@ -1,0 +1,62 @@
+{
+  "oracle": {
+    "final_cap_of_capturable_mean": 1.0,
+    "final_gap_capturable_mean": 0.0016333333333333332,
+    "osc_sd_2ndhalf_mean": 0.00046666666666666666,
+    "osc_sd_2ndhalf_by_seed": [
+      0.0005,
+      0.0004,
+      0.0005
+    ],
+    "cap_by_seed": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "selfplay": {
+    "final_cap_of_capturable_mean": 1.0,
+    "final_gap_capturable_mean": 0.004666666666666667,
+    "osc_sd_2ndhalf_mean": 0.007566666666666666,
+    "osc_sd_2ndhalf_by_seed": [
+      0.0014,
+      0.0022,
+      0.0191
+    ],
+    "cap_by_seed": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "simul": {
+    "final_cap_of_capturable_mean": 1.0,
+    "final_gap_capturable_mean": 0.026966666666666667,
+    "osc_sd_2ndhalf_mean": 0.03356666666666667,
+    "osc_sd_2ndhalf_by_seed": [
+      0.0186,
+      0.0156,
+      0.0665
+    ],
+    "cap_by_seed": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "abr": {
+    "final_cap_of_capturable_mean": 0.0,
+    "final_gap_capturable_mean": 0.5078333333333332,
+    "osc_sd_2ndhalf_mean": 0.16096666666666667,
+    "osc_sd_2ndhalf_by_seed": [
+      0.1474,
+      0.1944,
+      0.1411
+    ],
+    "cap_by_seed": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+}
