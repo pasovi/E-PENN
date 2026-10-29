@@ -23,7 +23,8 @@ and draws, for every head (= evader initial condition):
                               after capture).
 
 Usage:
-    python3 viz/visualize_actor.py [checkpoint.npz] [out_dir]
+    python3 torch_actor/checks/visualize_actor.py [checkpoint.npz] [out_dir] [--post-capture]
+Paths are cut at the capture step (the game ends there); --post-capture draws the rest faintly.
 Default checkpoint: v2_actor.npz (the published baseline).  Also accepts the
 rev2 checkpoint layout (keys BE_14000, ...).
 """
@@ -102,6 +103,17 @@ def head_color(j):
     return HEAD_CMAP(j % 20)
 
 
+POST_CAPTURE = False   # draw the part of a path after capture faintly (else cut)
+
+
+def cut(S, j, traj):
+    """(before-or-at capture, after capture) pieces of a per-head path (n_t+1, ...)."""
+    if not S["captured"][j]:
+        return traj, traj[:0]
+    k = int(S["kc"][j])
+    return traj[:k + 1], traj[k:]
+
+
 def constancy(u):
     """eta = |<u>_t|^2 per head (1 iff constant heading)."""
     ub = u.mean(axis=1)
@@ -138,9 +150,12 @@ def fig_torus(S, cfg, path):
         _torus_path(ax, (S["xE"][j, 0] + cfg.v_E * tt * dh) % cfg.L, cfg.L, "tab:blue",
                     lw=0.8, ls="--", alpha=0.6)
         _torus_path(ax, (cfg.v_P * tt * dh) % cfg.L, cfg.L, "tab:red", lw=0.8, ls="--", alpha=0.6)
-        # learned paths
-        _torus_path(ax, S["xE"][j], cfg.L, "tab:blue", label="evader")
-        _torus_path(ax, S["xP"][j], cfg.L, "tab:red", label="pursuer")
+        # learned paths, cut at capture
+        for traj, col, lab in ((S["xE"][j], "tab:blue", "evader"), (S["xP"][j], "tab:red", "pursuer")):
+            pre, post = cut(S, j, traj)
+            _torus_path(ax, pre, cfg.L, col, label=lab)
+            if POST_CAPTURE and len(post) > 1:
+                _torus_path(ax, post, cfg.L, col, lw=0.7, alpha=0.25)
         ax.scatter(*S["xE"][j, 0], s=40, c="tab:blue", edgecolor="k", zorder=5)
         ax.scatter(0, 0, s=40, c="tab:red", marker="s", edgecolor="k", zorder=5)
         if S["captured"][j]:
@@ -158,8 +173,8 @@ def fig_torus(S, cfg, path):
             ax.legend(fontsize=7, loc="lower right", framealpha=0.9)
     for j in range(n_h, len(axes)):
         axes[j].axis("off")
-    fig.suptitle("Learned open-loop trajectories on T² (solid) vs the analytic constant-heading "
-                 "saddle (dashed); dotted = reach circle R; ○ = capture", y=1.0)
+    fig.suptitle("Learned open-loop trajectories on T² (solid, cut at capture) vs the analytic "
+                 "constant-heading saddle (dashed); dotted = reach circle R; ○ = capture", y=1.0)
     fig.tight_layout()
     fig.savefig(path, dpi=130, bbox_inches="tight"); plt.close(fig)
 
@@ -177,8 +192,11 @@ def fig_lifted(S, cfg, path):
     ax.plot(cfg.reach * np.cos(th), cfg.reach * np.sin(th), color="0.5", ls=":", lw=1)
     for j in range(n_h):
         c = head_color(j)
-        ax.plot(*S["xE_l"][j].T, color=c, lw=1.4, label=f"head {j}")
-        ax.plot(*S["xP_l"][j].T, color=c, lw=1.0, ls="--")
+        preE, postE = cut(S, j, S["xE_l"][j]); preP, postP = cut(S, j, S["xP_l"][j])
+        ax.plot(*preE.T, color=c, lw=1.4, label=f"head {j}")
+        ax.plot(*preP.T, color=c, lw=1.0, ls="--")
+        if POST_CAPTURE and len(postE) > 1:
+            ax.plot(*postE.T, color=c, lw=0.7, alpha=0.25); ax.plot(*postP.T, color=c, lw=0.7, ls="--", alpha=0.25)
         ax.scatter(*S["xE_l"][j, 0], s=30, color=c, edgecolor="k", zorder=5)
         ax.annotate(str(j), S["xE_l"][j, 0], fontsize=7, xytext=(3, 3), textcoords="offset points")
         if S["captured"][j]:
@@ -186,7 +204,7 @@ def fig_lifted(S, cfg, path):
     ax.set_aspect("equal")
     ax.set_xlim(-2.2 * cfg.L, 2.2 * cfg.L); ax.set_ylim(-2.2 * cfg.L, 2.2 * cfg.L)
     ax.legend(fontsize=7, loc="upper right", ncol=2, framealpha=0.9, title="colour = head")
-    ax.set_title("Lifted paths on the universal cover R² (solid = evader, dashed = pursuer,\n"
+    ax.set_title("Lifted paths on the universal cover R², cut at capture (solid = evader, dashed = pursuer,\n"
                  "grey dots = images of the pursuer start, ○ = capture; the image the pursuer "
                  "reaches is its 'chart')", fontsize=10)
     ax.set_xlabel("x"); ax.set_ylabel("y")
@@ -218,7 +236,7 @@ def fig_torus3d(S, cfg, path, heads=None, R0=1.6, r=0.6):
                       r * np.sin(B), color="0.7", lw=0.3, rstride=3, cstride=6, alpha=0.5)
     for j in heads:
         c = head_color(j)
-        eE = emb(S["xE"][j]); eP = emb(S["xP"][j])
+        eE = emb(cut(S, j, S["xE"][j])[0]); eP = emb(cut(S, j, S["xP"][j])[0])
         ax.plot(*eE.T, color=c, lw=2, label=f"head {j} ({'captured' if S['captured'][j] else 'escapes'})")
         ax.plot(*eP.T, color=c, lw=1.4, ls="--")
         ax.scatter(*eE[0], color=c, s=40, edgecolor="k")
@@ -248,8 +266,12 @@ def fig_headings(S, cfg, pE, pP, path):
         # bring both into the branch nearest the saddle angle
         thE -= 2 * np.pi * np.round((thE[0] - sad) / (2 * np.pi))
         thP -= 2 * np.pi * np.round((thP[0] - sad) / (2 * np.pi))
-        ax.plot(td, thE, color="tab:blue", lw=1.2, label="θ_E")
-        ax.plot(td, thP, color="tab:red", lw=1.2, label="θ_P")
+        on = td <= (S["Tc"][j] if S["captured"][j] else np.inf)
+        ax.plot(td[on], thE[on], color="tab:blue", lw=1.2, label="θ_E")
+        ax.plot(td[on], thP[on], color="tab:red", lw=1.2, label="θ_P")
+        if POST_CAPTURE and (~on).any():
+            ax.plot(td[~on], thE[~on], color="tab:blue", lw=0.7, alpha=0.25)
+            ax.plot(td[~on], thP[~on], color="tab:red", lw=0.7, alpha=0.25)
         ax.axhline(sad, color="k", ls="--", lw=0.8, label="saddle angle")
         ax2 = ax.twinx()
         ax2.plot(S["tg"], S["d"][j], color="0.4", lw=0.9, alpha=0.8)
@@ -265,7 +287,7 @@ def fig_headings(S, cfg, pE, pP, path):
             ax.legend(fontsize=6, loc="upper left")
     for j in range(n_h, len(axes)):
         axes[j].axis("off")
-    fig.suptitle("Heading angles θ(t) (left axis) vs the saddle angle; grey = torus distance d(t) "
+    fig.suptitle("Heading angles θ(t) up to capture (left axis) vs the saddle angle; grey = torus distance d(t) "
                  "(right axis, dotted = ε); green = capture time", y=1.0)
     fig.tight_layout()
     fig.savefig(path, dpi=130, bbox_inches="tight"); plt.close(fig)
@@ -339,6 +361,8 @@ def main(ckpt, out):
 
 
 if __name__ == "__main__":
+    if "--post-capture" in sys.argv:
+        POST_CAPTURE = True; sys.argv.remove("--post-capture")
     ckpt = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "paper", "ckpt", "baseline", "grid_i0_c0.npz")
     out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "checks", "figs", "baseline")
     main(ckpt, out)

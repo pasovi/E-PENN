@@ -44,7 +44,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 import pe_torch as pt  # noqa: E402
 from core import RunConfig  # noqa: E402
-from visualize_actor import simulate, head_color  # noqa: E402
+from visualize_actor import simulate, head_color, cut  # noqa: E402
 
 
 # ---------------------------------------------------------------- training
@@ -140,7 +140,7 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
         axL.plot(cfg_r.reach * np.cos(th), cfg_r.reach * np.sin(th), color="0.5", ls=":", lw=1)
         axL.set_aspect("equal"); axL.set_xlim(-2.2 * L, 2.2 * L); axL.set_ylim(-2.2 * L, 2.2 * L)
         axL.set_xlabel("x"); axL.set_ylabel("y")
-        axL.set_title("Lifted paths on R² (solid = evader, dashed = pursuer, ○ = capture)", fontsize=10)
+        axL.set_title("Lifted paths on R², cut at capture (solid = evader, dashed = pursuer, ○ = capture)", fontsize=10)
         for j in heads_left:
             c = head_color(j)
             tag = "capturable" if S0["capturable"][j] else "uncapturable"
@@ -161,7 +161,7 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
         for sp in axL.spines.values():
             sp.set_linewidth(1.6); sp.set_edgecolor("0.3")
         axL.set_xlabel("x  (x = 0 and x = L identified)"); axL.set_ylabel("y  (y = 0 and y = L identified)")
-        axL.set_title("Flat torus [0, L)² with periodic boundaries (solid = evader, dashed = pursuer, ○ = capture)",
+        axL.set_title("Flat torus [0, L)², periodic, paths cut at capture (solid = evader, dashed = pursuer, ○ = capture)",
                       fontsize=10)
         for j in heads_left:
             c = head_color(j)
@@ -220,15 +220,15 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
         S = sims[i]
         for j in heads_left:
             if left == "lifted":
-                linesE[j].set_data(S["xE_l"][j, :, 0], S["xE_l"][j, :, 1])
-                linesP[j].set_data(S["xP_l"][j, :, 0], S["xP_l"][j, :, 1])
+                pE_, pP_ = cut(S, j, S["xE_l"][j])[0], cut(S, j, S["xP_l"][j])[0]
+                linesE[j].set_data(pE_[:, 0], pE_[:, 1]); linesP[j].set_data(pP_[:, 0], pP_[:, 1])
                 caps[j].set_offsets(S["xP_l"][j, S["kc"][j]][None, :] if S["captured"][j] else np.empty((0, 2)))
             else:
-                linesE[j].set_segments(wrapped_segments(S["xE"][j] % L, L))
-                linesP[j].set_segments(wrapped_segments(S["xP"][j] % L, L))
+                linesE[j].set_segments(wrapped_segments(cut(S, j, S["xE"][j])[0] % L, L))
+                linesP[j].set_segments(wrapped_segments(cut(S, j, S["xP"][j])[0] % L, L))
                 caps[j].set_offsets((S["xP"][j, S["kc"][j]] % L)[None, :] if S["captured"][j] else np.empty((0, 2)))
         for j in heads3d:
-            eE = emb(S["xE"][j], L); eP = emb(S["xP"][j], L)
+            eE = emb(cut(S, j, S["xE"][j])[0], L); eP = emb(cut(S, j, S["xP"][j])[0], L)
             lines3E[j].set_data(eE[:, 0], eE[:, 1]); lines3E[j].set_3d_properties(eE[:, 2])
             lines3P[j].set_data(eP[:, 0], eP[:, 1]); lines3P[j].set_3d_properties(eP[:, 2])
         k = min(int(snap_step[i]), len(st) - 1)
@@ -237,7 +237,8 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
         ltxt.set_text(f"step {int(st[k])}:  L_P = {LP[k]:.3f},  L_E = {LE[k]:.3f}")
         n_cap = int(S["captured"].sum()); n_capable = int(S["capturable"].sum())
         n_cap_c = int((S["captured"] & S["capturable"]).sum())
-        sup.set_text(f"Baseline training (init seed 0, IC seed 0): {labels[i]}   |   "
+        sup.set_text(f"Baseline{' (capture-truncated loss)' if cfg.truncate else ''} training "
+                     f"(init seed 0, IC seed 0): {labels[i]}   |   "
                      f"captured {n_cap} of {n_h} heads ({n_cap_c} of the {n_capable} capturable)   |   "
                      f"frame {i + 1}/{len(sims)}")
         return []
@@ -268,10 +269,11 @@ def main():
     ap.add_argument("--out", default="training_evolution")
     ap.add_argument("--format", default="mp4", choices=["mp4", "gif"])
     ap.add_argument("--left", default="lifted", choices=["lifted", "flat"])
+    ap.add_argument("--truncate", action="store_true", help="train with the capture-truncated distance term")
     a = ap.parse_args()
     out = os.path.join(HERE, "figs", a.name)
     os.makedirs(out, exist_ok=True)
-    cfg = pt.Config()
+    cfg = pt.Config(truncate=a.truncate)
     if a.snapshots:
         z = np.load(a.snapshots)
         if "loss_hist" not in z.files:

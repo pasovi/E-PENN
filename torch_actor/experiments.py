@@ -19,6 +19,8 @@ Stages (python3 torch_actor/experiments.py [stage ...]; default: all):
   protocols Fig. 6: oracle / selfplay / simul / abr, 14k steps, 3 seeds
   honest    Fig. 7: gda / eg / ogda / avg / ogda_ema / oracle, 6k iters, 3 seeds
   shapley   Fig. 8: grouped Shapley, oracle vs self-play pursuer, 3 seeds
+  r1_trunc  the 10 x 10 grid with the capture-truncated distance term <S d> (rev2's R2);
+            not part of the default "all" run
 Devices: batches of >= 20 runs go to the Mac GPU in float32 when available; the
 chaos arm and everything else run on CPU in float64.
 """
@@ -134,9 +136,12 @@ def r1_record(name, arm, rcfg: RunConfig, out, r, snapshots):
             "env": ENV}
 
 
-def stage_r1():
-    cfg = pt.Config()
+def stage_r1(truncate: bool = False):
+    """truncate=True: the 10 x 10 grid only, with the capture-truncated distance term,
+    under checks/{ckpt,results}/r1_trunc and paper/ckpt/baseline_trunc."""
+    cfg = pt.Config(truncate=truncate)
     base = RunConfig()
+    tag = "r1_trunc" if truncate else "r1"
     arms = {
         "grid": ([(i, c) for c in range(10) for i in range(10)],
                  [f"grid_i{i}_c{c}" for c in range(10) for i in range(10)],
@@ -151,7 +156,9 @@ def stage_r1():
                     [replace(base, init_seed=i, adam_reset_every=0) for i in range(10)],
                     {"adam_reset_every": 0}),
     }
-    os.makedirs(os.path.join(CHECKS, "results", "r1"), exist_ok=True)
+    if truncate:
+        arms = {"grid": arms["grid"]}
+    os.makedirs(os.path.join(CHECKS, "results", tag), exist_ok=True)
     for arm, (runs, names, rcfgs, over) in arms.items():
         c = smoke(replace(cfg, **over))
         if SMOKE:
@@ -160,17 +167,17 @@ def stage_r1():
                      for rc in rcfgs]
         R = len(runs)
         dev, dt = ("cpu", torch.float64) if arm == "chaos" else device_for(R)
-        log(f"r1/{arm}: {R} runs on {dev} {dt} ...")
+        log(f"{tag}/{arm}: {R} runs on {dev} {dt} ...")
         out = pt.train(c, runs=runs, device=dev, dtype=dt, snapshot_fn=pt.light_metrics)
-        log(f"r1/{arm}: trained in {out['seconds']:.0f} s; scoring with rev2 metrics ...")
+        log(f"{tag}/{arm}: trained in {out['seconds']:.0f} s; scoring with rev2 metrics ...")
         for r, name in enumerate(names):
-            pt.save_run_ckpt(os.path.join(CHECKS, "ckpt", "r1", name + ".npz"), c, out, r)
+            pt.save_run_ckpt(os.path.join(CHECKS, "ckpt", tag, name + ".npz"), c, out, r)
             rec = r1_record(name, arm, rcfgs[r], out, r, [s[r] for s in out["snapshots"]])
-            rec["device"] = f"{dev} {dt}"
-            dump(rec, os.path.join(CHECKS, "results", "r1", name + ".json"))
+            rec["device"] = f"{dev} {dt}"; rec["truncate"] = truncate
+            dump(rec, os.path.join(CHECKS, "results", tag, name + ".json"))
         if arm == "grid":   # the published baseline configuration, also under paper/
-            pt.save_run_ckpt(os.path.join(CKPT, "baseline", "grid_i0_c0.npz"), c, out, 0)
-        log(f"r1/{arm}: done")
+            pt.save_run_ckpt(os.path.join(CKPT, "baseline_trunc" if truncate else "baseline", "grid_i0_c0.npz"), c, out, 0)
+        log(f"{tag}/{arm}: done")
 
 
 # --------------------------------------------------------------- controls
@@ -348,12 +355,12 @@ def stage_shapley():
     log(f"shapley: {time.time() - t0:.0f} s")
 
 
-STAGES = {"r1": stage_r1, "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
+STAGES = {"r1": stage_r1, "r1_trunc": lambda: stage_r1(truncate=True), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
           "dv": stage_dv, "protocols": stage_protocols, "honest": stage_honest,
           "shapley": stage_shapley}
 
 if __name__ == "__main__":
-    stages = sys.argv[1:] or list(STAGES)
+    stages = sys.argv[1:] or [k for k in STAGES if k != "r1_trunc"]
     T0 = time.time()
     for s in stages:
         STAGES[s]()

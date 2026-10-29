@@ -54,6 +54,8 @@ class Config:
     # loss
     lam_nc: float = 2.0
     lam_d: float = 5.0
+    truncate: bool = False      # True: distance term weighted by survival, <S(t) d(t)>_t
+    #                             (the game ends at capture); False: the draft's <d(t)>_t
     # protocol
     warmup: int = 1500
     n_iters: int = 14000
@@ -179,6 +181,8 @@ def game_loss(xE: torch.Tensor, xP: torch.Tensor, cfg: Config, lam_d=None,
     L_E = <-T_soft - lam_d <d>_t>_heads                  (baseline, one-sided bonus)
     L_E = -L_P                                           (symmetric=True, C2)
     lam_d: float or (R,) array (per run).
+    cfg.truncate: the distance term becomes <S(t) d(t)>_t, with S the survival
+    probability, so time steps after capture do not contribute (rev2's R2).
     """
     dt = cfg.t_max / cfg.n_t
     L = cfg.L
@@ -191,7 +195,7 @@ def game_loss(xE: torch.Tensor, xP: torch.Tensor, cfg: Config, lam_d=None,
     log_one_minus_p = -F.softplus(arg)                                # log(1 - sigmoid(arg))
     S = torch.exp(torch.cumsum(log_one_minus_p, dim=-1))
     ET = dt * (0.5 * S[..., 0] + S[..., 1:-1].sum(-1) + 0.5 * S[..., -1])
-    d_mean = d.mean(-1)
+    d_mean = (S * d).mean(-1) if cfg.truncate else d.mean(-1)
     nc = cfg.lam_nc * S[..., -1] * cfg.t_max
     L_P = (ET + nc + ld * d_mean).mean(-1)
     if symmetric:
