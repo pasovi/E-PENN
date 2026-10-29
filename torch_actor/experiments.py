@@ -23,6 +23,7 @@ Stages (python3 torch_actor/experiments.py [stage ...]; default: all):
             not part of the default "all" run
   r1_trunc_k0  same, with the body fed only t / t_max (no Fourier features, K = 0)
   r1_trunc_k0_d4  same with a 4-layer tanh body (16 units each) instead of 1 layer
+  r1_trunc_k0_d4_lr0.1  same with both learning rates 10x smaller (1e-3 / 1e-4)
 Devices: batches of >= 20 runs go to the Mac GPU in float32 when available; the
 chaos arm and everything else run on CPU in float64.
 """
@@ -140,13 +141,15 @@ def r1_record(name, arm, rcfg: RunConfig, out, r, snapshots):
             "env": ENV}
 
 
-def stage_r1(truncate: bool = False, K: int | None = None, depth: int = 1):
+def stage_r1(truncate: bool = False, K: int | None = None, depth: int = 1, lr_scale: float = 1.0):
     """truncate=True: the 10 x 10 grid only, with the capture-truncated distance term,
     under checks/{ckpt,results}/r1_trunc and paper/ckpt/baseline_trunc.
     K: input harmonics (K = 0: the body sees only t / t_max); tag gets a _k<K> suffix."""
     cfg = pt.Config(truncate=truncate, depth=depth) if K is None else pt.Config(truncate=truncate, K=K, depth=depth)
-    base = RunConfig() if K is None else replace(RunConfig(), K=K)
-    tag = ("r1_trunc" if truncate else "r1") + ("" if K is None else f"_k{K}") + ("" if depth == 1 else f"_d{depth}")
+    cfg = replace(cfg, lr_P=cfg.lr_P * lr_scale, lr_E=cfg.lr_E * lr_scale)
+    base = replace(RunConfig(), lr_P=cfg.lr_P, lr_E=cfg.lr_E) if K is None else replace(RunConfig(), K=K, lr_P=cfg.lr_P, lr_E=cfg.lr_E)
+    tag = (("r1_trunc" if truncate else "r1") + ("" if K is None else f"_k{K}") + ("" if depth == 1 else f"_d{depth}")
+           + ("" if lr_scale == 1.0 else f"_lr{lr_scale:g}"))
     arms = {
         "grid": ([(i, c) for c in range(10) for i in range(10)],
                  [f"grid_i{i}_c{c}" for c in range(10) for i in range(10)],
@@ -161,7 +164,7 @@ def stage_r1(truncate: bool = False, K: int | None = None, depth: int = 1):
                     [replace(base, init_seed=i, adam_reset_every=0) for i in range(10)],
                     {"adam_reset_every": 0}),
     }
-    if truncate or K is not None or depth != 1:
+    if truncate or K is not None or depth != 1 or lr_scale != 1.0:
         arms = {"grid": arms["grid"]}
     os.makedirs(os.path.join(CHECKS, "results", tag), exist_ok=True)
     for arm, (runs, names, rcfgs, over) in arms.items():
@@ -182,7 +185,8 @@ def stage_r1(truncate: bool = False, K: int | None = None, depth: int = 1):
             dump(rec, os.path.join(CHECKS, "results", tag, name + ".json"))
         if arm == "grid":   # the published baseline configuration, also under paper/
             pt.save_run_ckpt(os.path.join(CKPT, ("baseline_trunc" if truncate else "baseline") + ("" if K is None else f"_k{K}")
-                                          + ("" if depth == 1 else f"_d{depth}"), "grid_i0_c0.npz"), c, out, 0)
+                                          + ("" if depth == 1 else f"_d{depth}") + ("" if lr_scale == 1.0 else f"_lr{lr_scale:g}"),
+                                          "grid_i0_c0.npz"), c, out, 0)
         log(f"{tag}/{arm}: done")
 
 
@@ -363,7 +367,8 @@ def stage_shapley():
 
 STAGES = {"r1": stage_r1, "r1_trunc": lambda: stage_r1(truncate=True),
           "r1_trunc_k0": lambda: stage_r1(truncate=True, K=0),
-          "r1_trunc_k0_d4": lambda: stage_r1(truncate=True, K=0, depth=4), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
+          "r1_trunc_k0_d4": lambda: stage_r1(truncate=True, K=0, depth=4),
+          "r1_trunc_k0_d4_lr0.1": lambda: stage_r1(truncate=True, K=0, depth=4, lr_scale=0.1), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
           "dv": stage_dv, "protocols": stage_protocols, "honest": stage_honest,
           "shapley": stage_shapley}
 
