@@ -51,6 +51,7 @@ class Config:
     n_h: int = 16
     n_b: int = 16
     K: int = 12
+    depth: int = 1              # tanh layers in the body; layers 2..depth are n_b x n_b
     # loss
     lam_nc: float = 2.0
     lam_d: float = 5.0
@@ -84,13 +85,23 @@ class Config:
 
 
 # ------------------------------------------------- init (NumPy streams, verbatim)
-def init_params_np(n_h: int, n_b: int, D: int, rng: np.random.Generator) -> dict:
-    """Identical to pursuit_evasion_numpy.init_params (same draws, same order)."""
-    return {
+def init_params_np(n_h: int, n_b: int, D: int, rng: np.random.Generator, depth: int = 1) -> dict:
+    """Identical to pursuit_evasion_numpy.init_params (same draws, same order) for depth 1;
+    extra body layers B2, b2, ... are drawn afterwards, so depth-1 streams are unchanged."""
+    p = {
         "B": rng.standard_normal((n_b, D)) * np.sqrt(1.5 / D),
         "b": np.zeros(n_b),
         "W": rng.standard_normal((n_h, 2, n_b)) * np.sqrt(1.0 / n_b),
     }
+    for l in range(2, depth + 1):
+        p[f"B{l}"] = rng.standard_normal((n_b, n_b)) * np.sqrt(1.5 / n_b)
+        p[f"b{l}"] = np.zeros(n_b)
+    return p
+
+
+def extra_layers(p: dict) -> list:
+    """Names of the body layers after the first, in order: [2, 3, ...]."""
+    return sorted(int(k[1:]) for k in p if k.startswith("B") and k[1:].isdigit())
 
 
 def sample_evader_ICs(n_h: int, L: float, min_dist: float, seed: int) -> np.ndarray:
@@ -111,12 +122,12 @@ def initial_state_np(cfg: Config, init_seed: int, ic_seed: int,
     """(pE, pP, x0) as NumPy arrays for one run; evader drawn first, then pursuer,
     from one stream seeded by init_seed, exactly as rev2/core.initial_state."""
     rng = np.random.default_rng(init_seed)
-    pE = init_params_np(cfg.n_h, cfg.n_b, cfg.D, rng)
-    pP = init_params_np(cfg.n_h, cfg.n_b, cfg.D, rng)
+    pE = init_params_np(cfg.n_h, cfg.n_b, cfg.D, rng, cfg.depth)
+    pP = init_params_np(cfg.n_h, cfg.n_b, cfg.D, rng, cfg.depth)
     if perturb_scale > 0.0:
         prng = np.random.default_rng(perturb_seed)
         for p in (pE, pP):
-            for k in ("B", "W", "b"):            # same sorted-key order as core.py
+            for k in ["B", "W", "b"] + [f"{a}{l}" for l in extra_layers(p) for a in "Bb"]:
                 p[k] = p[k] + perturb_scale * prng.standard_normal(p[k].shape)
     x0 = sample_evader_ICs(cfg.n_h, cfg.L, cfg.ic_min_dist, ic_seed)
     return pE, pP, x0
@@ -127,8 +138,8 @@ def stack_runs(states, device, dtype):
     def stack(key, which):
         arr = np.stack([np.asarray(s[which][key], dtype=np.float64) for s in states])
         return torch.tensor(arr, device=device, dtype=dtype, requires_grad=True)
-    pE = {k: stack(k, 0) for k in ("B", "b", "W")}
-    pP = {k: stack(k, 1) for k in ("B", "b", "W")}
+    pE = {k: stack(k, 0) for k in states[0][0]}
+    pP = {k: stack(k, 1) for k in states[0][1]}
     x0 = torch.tensor(np.stack([s[2] for s in states]), device=device, dtype=dtype)
     return pE, pP, x0
 
@@ -145,6 +156,8 @@ def forward_dirs(p: dict, phi: torch.Tensor):
     """u: (R, n_h, T, 2) unit headings; H: (R, T, n_b) latent curve; z: (R, n_h, T, 2)."""
     z_body = torch.einsum("td,rbd->rtb", phi, p["B"]) + p["b"][:, None, :]
     H = torch.tanh(z_body)
+    for l in extra_layers(p):                      # deeper bodies: H <- tanh(B_l H + b_l)
+        H = torch.tanh(torch.einsum("rtb,rcb->rtc", H, p[f"B{l}"]) + p[f"b{l}"][:, None, :])
     z = torch.einsum("rjab,rtb->rjta", p["W"], H)
     u = z / z.norm(dim=-1, keepdim=True).clamp_min(1e-8)
     return u, H, z
@@ -207,7 +220,7 @@ def game_loss(xE: torch.Tensor, xP: torch.Tensor, cfg: Config, lam_d=None,
 
 # --------------------------------------------------------------- training
 def make_adam(p: dict, lr: float):
-    return torch.optim.Adam([p["B"], p["b"], p["W"]], lr=lr, betas=(0.9, 0.999), eps=1e-8)
+    return torch.optim.Adam(list(p.values()), lr=lr, betas=(0.9, 0.999), eps=1e-8)
 
 
 def step(who: str, pE: dict, pP: dict, x0: torch.Tensor, phi: torch.Tensor,
@@ -353,12 +366,13 @@ def save_run_ckpt(path: str, cfg: Config, out: dict, r: int, extra: dict | None 
     BP, bP, WP, iter0) for the final parameters, so the original analysis scripts
     and viz/visualize_actor.py read it too."""
     arrs = {"x_E0": out["x0"][r], "config": np.array(repr(asdict(cfg)))}
+    key = lambda k, a: k[0] + a + k[1:]           # "B2" -> "BE2", "b" -> "bE", "W" -> "WE"  # noqa: E731
     for it, (pE, pP) in out["ckpts"].items():
-        arrs.update({f"BE_{it}": pE["B"][r], f"bE_{it}": pE["b"][r], f"WE_{it}": pE["W"][r],
-                     f"BP_{it}": pP["B"][r], f"bP_{it}": pP["b"][r], f"WP_{it}": pP["W"][r]})
-    arrs.update({"BE": out["pE"]["B"][r], "bE": out["pE"]["b"][r], "WE": out["pE"]["W"][r],
-                 "BP": out["pP"]["B"][r], "bP": out["pP"]["b"][r], "WP": out["pP"]["W"][r],
-                 "iter0": np.array(cfg.n_iters)})
+        arrs.update({f"{key(k, 'E')}_{it}": pE[k][r] for k in pE})
+        arrs.update({f"{key(k, 'P')}_{it}": pP[k][r] for k in pP})
+    arrs.update({key(k, "E"): out["pE"][k][r] for k in out["pE"]})
+    arrs.update({key(k, "P"): out["pP"][k][r] for k in out["pP"]})
+    arrs["iter0"] = np.array(cfg.n_iters)
     if extra:
         arrs.update(extra)
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -368,10 +382,13 @@ def save_run_ckpt(path: str, cfg: Config, out: dict, r: int, extra: dict | None 
 def load_ckpt(path: str, it: int | None = None):
     """(pE, pP, x0) with keys B, b, W.  it=None -> final (legacy keys)."""
     z = np.load(path)
-    if it is None:
-        pE = {"B": z["BE"], "b": z["bE"], "W": z["WE"]}
-        pP = {"B": z["BP"], "b": z["bP"], "W": z["WP"]}
-    else:
-        pE = {"B": z[f"BE_{it}"], "b": z[f"bE_{it}"], "W": z[f"WE_{it}"]}
-        pP = {"B": z[f"BP_{it}"], "b": z[f"bP_{it}"], "W": z[f"WP_{it}"]}
-    return pE, pP, z["x_E0"]
+    suf = "" if it is None else f"_{it}"
+    out = []
+    for a in "EP":
+        p = {"B": z[f"B{a}{suf}"], "b": z[f"b{a}{suf}"], "W": z[f"W{a}{suf}"]}
+        for l in range(2, 50):
+            if f"B{a}{l}{suf}" not in z.files:
+                break
+            p[f"B{l}"] = z[f"B{a}{l}{suf}"]; p[f"b{l}"] = z[f"b{a}{l}{suf}"]
+        out.append(p)
+    return out[0], out[1], z["x_E0"]

@@ -41,19 +41,23 @@ import matplotlib.pyplot as plt  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "checks"))
-from numpy_reference import fourier_features, forward_dirs, rollout  # noqa: E402
-from core import RunConfig  # noqa: E402
+from numpy_reference import fourier_features, rollout  # noqa: E402
+from core import RunConfig, forward_dirs  # noqa: E402
 
 
 # ----------------------------------------------------------------- loading
 def load_actor(path: str, it: int = 14000):
     z = np.load(path)
-    if "BE" in z.files:
-        pE = {"B": z["BE"], "b_body": z["bE"], "W": z["WE"]}
-        pP = {"B": z["BP"], "b_body": z["bP"], "W": z["WP"]}
-    else:
-        pE = {"B": z[f"BE_{it}"], "b_body": z[f"bE_{it}"], "W": z[f"WE_{it}"]}
-        pP = {"B": z[f"BP_{it}"], "b_body": z[f"bP_{it}"], "W": z[f"WP_{it}"]}
+    suf = "" if "BE" in z.files else f"_{it}"
+    ps = []
+    for a in "EP":
+        p = {"B": z[f"B{a}{suf}"], "b_body": z[f"b{a}{suf}"], "W": z[f"W{a}{suf}"]}
+        for l in range(2, 50):
+            if f"B{a}{l}{suf}" not in z.files:
+                break
+            p[f"B{l}"] = z[f"B{a}{l}{suf}"]; p[f"b{l}"] = z[f"b{a}{l}{suf}"]
+        ps.append(p)
+    pE, pP = ps
     K = (pE["B"].shape[1] - 1) // 2
     return pE, pP, z["x_E0"], K
 

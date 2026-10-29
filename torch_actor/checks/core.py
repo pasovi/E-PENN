@@ -29,9 +29,27 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from numpy_reference import (  # noqa: E402  (verbatim copy of pursuit_evasion_numpy.py)
-    fourier_features, forward_dirs, backward_dirs, rollout, backward_rollout,
+    fourier_features, backward_dirs, rollout, backward_rollout,
     forward_loss, backward_loss, init_params, sample_evader_ICs, Adam,
 )
+from numpy_reference import forward_dirs as _forward_dirs_1layer  # noqa: E402
+
+
+def forward_dirs(params: dict, phi: np.ndarray):
+    """pursuit_evasion_numpy.forward_dirs, extended to bodies with extra tanh layers
+    stored as B2, b2, B3, b3, ... (same cache keys: H is the last layer's output)."""
+    extra = sorted(int(k[1:]) for k in params if k.startswith("B") and k[1:].isdigit())
+    if not extra:
+        return _forward_dirs_1layer(params, phi)
+    B, b, W = params["B"], params["b_body"], params["W"]
+    z_body = phi @ B.T + b
+    H = np.tanh(z_body)
+    for l in extra:
+        H = np.tanh(H @ params[f"B{l}"].T + params[f"b{l}"])
+    z_head = np.einsum("jab,tb->jta", W, H)
+    norm_z = np.linalg.norm(z_head, axis=-1, keepdims=True).clip(min=1e-8)
+    u = z_head / norm_z
+    return u, {"phi": phi, "H": H, "z_body": z_body, "z_head": z_head, "u": u, "norm_z": norm_z, "W": W}
 
 
 @dataclass(frozen=True)
@@ -175,7 +193,14 @@ def save_ckpts(path: str, cfg: RunConfig, out: dict) -> None:
 
 
 def load_ckpt(path: str, it: int = 14000):
+    """(pE, pP, x0); extra body layers (BE2_<it>, bE2_<it>, ...) are read when present."""
     z = np.load(path)
-    pE = {"B": z[f"BE_{it}"], "b_body": z[f"bE_{it}"], "W": z[f"WE_{it}"]}
-    pP = {"B": z[f"BP_{it}"], "b_body": z[f"bP_{it}"], "W": z[f"WP_{it}"]}
-    return pE, pP, z["x_E0"]
+    out = []
+    for a in "EP":
+        p = {"B": z[f"B{a}_{it}"], "b_body": z[f"b{a}_{it}"], "W": z[f"W{a}_{it}"]}
+        for l in range(2, 50):
+            if f"B{a}{l}_{it}" not in z.files:
+                break
+            p[f"B{l}"] = z[f"B{a}{l}_{it}"]; p[f"b{l}"] = z[f"b{a}{l}_{it}"]
+        out.append(p)
+    return out[0], out[1], z["x_E0"]
