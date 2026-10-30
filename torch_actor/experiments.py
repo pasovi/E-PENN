@@ -24,6 +24,7 @@ Stages (python3 torch_actor/experiments.py [stage ...]; default: all):
   r1_trunc_k0  same, with the body fed only t / t_max (no Fourier features, K = 0)
   r1_trunc_k0_d4  same with a 4-layer tanh body (16 units each) instead of 1 layer
   r1_trunc_k0_d4_lr0.1  same with both learning rates 10x smaller (1e-3 / 1e-4)
+  r1_trunc_d4, r1_trunc_d4_lr0.1  the 4-layer body with the Fourier features (K = 12)
 Devices: batches of >= 20 runs go to the Mac GPU in float32 when available; the
 chaos arm and everything else run on CPU in float64.
 """
@@ -368,7 +369,9 @@ def stage_shapley():
 STAGES = {"r1": stage_r1, "r1_trunc": lambda: stage_r1(truncate=True),
           "r1_trunc_k0": lambda: stage_r1(truncate=True, K=0),
           "r1_trunc_k0_d4": lambda: stage_r1(truncate=True, K=0, depth=4),
-          "r1_trunc_k0_d4_lr0.1": lambda: stage_r1(truncate=True, K=0, depth=4, lr_scale=0.1), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
+          "r1_trunc_k0_d4_lr0.1": lambda: stage_r1(truncate=True, K=0, depth=4, lr_scale=0.1),
+          "r1_trunc_d4": lambda: stage_r1(truncate=True, depth=4),
+          "r1_trunc_d4_lr0.1": lambda: stage_r1(truncate=True, depth=4, lr_scale=0.1), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
           "dv": stage_dv, "protocols": stage_protocols, "honest": stage_honest,
           "shapley": stage_shapley}
 
