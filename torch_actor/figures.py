@@ -191,8 +191,8 @@ def fig5(base):
 
 
 # ------------------------------------------------------------------ Fig 6
-def fig6():
-    rows = [json.loads(l) for l in open(os.path.join(A.RES, "game_protocols_results_full.jsonl"))]
+def fig6(suffix=""):
+    rows = [json.loads(l) for l in open(os.path.join(A.RES, f"game_protocols_results_full{suffix}.jsonl"))]
     protos = ["oracle", "selfplay", "simul", "abr"]
     labels = {"oracle": "oracle (fixed optimal evader)", "selfplay": "self-play, 3:1 (paper baseline)",
               "simul": "simultaneous 1:1 (GDA)", "abr": "alternating best-response"}
@@ -210,7 +210,7 @@ def fig6():
                   "final_gap_capturable_mean": float(np.mean(summary[p]["fgap"])),
                   "osc_sd_2ndhalf_mean": float(np.mean(summary[p]["osc"])),
                   "osc_sd_2ndhalf_by_seed": summary[p]["osc"], "cap_by_seed": summary[p]["cap"]}
-    json.dump(out, open(os.path.join(A.RES, "game_protocols_summary.json"), "w"), indent=2)
+    json.dump(out, open(os.path.join(A.RES, f"game_protocols_summary{suffix}.json"), "w"), indent=2)
     fig, ax = plt.subplots(1, 2, figsize=(11, 4.1))
     for p in protos:
         s = summary[p]
@@ -218,14 +218,15 @@ def fig6():
         ax[0].fill_between(s["frac"], np.clip(s["gap_mean"] - s["gap_sd"], 1e-3, None), s["gap_mean"] + s["gap_sd"], color=col[p], alpha=0.15)
     ax[0].axhline(0.08, color="k", ls=":", lw=1, label=r"capture radius $\varepsilon$")
     ax[0].set_yscale("log"); ax[0].set_xlabel("training fraction"); ax[0].set_ylabel("mean pursuit gap on capturable ICs")
-    ax[0].set_title("(a) Convergence vs co-adaptation (3 seeds)"); ax[0].legend(fontsize=7.2, loc="upper right")
+    ax[0].set_title("(a) Convergence vs co-adaptation (3 seeds" + (", capture-truncated loss)" if suffix else ")"))
+    ax[0].legend(fontsize=7.2, loc="upper right")
     for i, p in enumerate(protos):
         o = summary[p]["osc"]
         ax[1].bar(i, np.mean(o), color=col[p], alpha=0.75); ax[1].plot([i] * len(o), o, "o", color="k", ms=4, zorder=5)
     ax[1].set_xticks(range(4)); ax[1].set_xticklabels(["oracle", "self-play\n3:1", "simul\n1:1", "ABR"], fontsize=8)
     ax[1].set_ylabel("late-training oscillation (s.d. of gap)"); ax[1].set_title("(b) Cycling by protocol (dots = seeds)", fontsize=10)
     fig.tight_layout()
-    save(fig, "fig6_protocols")
+    save(fig, "fig6_protocols" + suffix)
 
 
 # ------------------------------------------------------------------ Fig 7
@@ -310,5 +311,7 @@ def figA_c7():
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "fig6_trunc":
+        fig6("_trunc"); sys.exit()
     base = base_suite()
     fig1(base); fig2(base); fig3(); fig4(); fig5(base); fig6(); fig7(); fig8(); figA_c7()

@@ -340,13 +340,14 @@ def stage_dv():
 
 
 # ------------------------------------------------------- protocols / Shapley
-def stage_protocols():
+def stage_protocols(truncate: bool = False):
     rows = []
+    cfg = pt.Config(truncate=truncate)
     for p in ("oracle", "selfplay", "simul", "abr"):
         t0 = time.time()
-        rows += pr.run_game_protocol(p, [0, 1, 2], total=BUDGET["protocols"])
-        log(f"protocols/{p}: {time.time() - t0:.0f} s")
-    dump_lines(rows, os.path.join(RES, "game_protocols_results_full.jsonl"))
+        rows += pr.run_game_protocol(p, [0, 1, 2], total=BUDGET["protocols"], cfg=cfg)
+        log(f"protocols{'_trunc' if truncate else ''}/{p}: {time.time() - t0:.0f} s")
+    dump_lines(rows, os.path.join(RES, "game_protocols_results_full" + ("_trunc" if truncate else "") + ".jsonl"))
 
 
 def stage_honest():
@@ -371,12 +372,13 @@ STAGES = {"r1": stage_r1, "r1_trunc": lambda: stage_r1(truncate=True),
           "r1_trunc_k0_d4": lambda: stage_r1(truncate=True, K=0, depth=4),
           "r1_trunc_k0_d4_lr0.1": lambda: stage_r1(truncate=True, K=0, depth=4, lr_scale=0.1),
           "r1_trunc_d4": lambda: stage_r1(truncate=True, depth=4),
-          "r1_trunc_d4_lr0.1": lambda: stage_r1(truncate=True, depth=4, lr_scale=0.1), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
+          "r1_trunc_d4_lr0.1": lambda: stage_r1(truncate=True, depth=4, lr_scale=0.1),
+          "protocols_trunc": lambda: stage_protocols(truncate=True), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
           "dv": stage_dv, "protocols": stage_protocols, "honest": stage_honest,
           "shapley": stage_shapley}
 
 if __name__ == "__main__":
-    stages = sys.argv[1:] or [k for k in STAGES if not k.startswith("r1_trunc")]
+    stages = sys.argv[1:] or [k for k in STAGES if "trunc" not in k]
     T0 = time.time()
     for s in stages:
         STAGES[s]()
