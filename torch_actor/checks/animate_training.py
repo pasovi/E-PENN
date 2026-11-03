@@ -28,6 +28,7 @@ mp4 needs an ffmpeg binary: the `imageio-ffmpeg` package provides one.
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import os
 import sys
 import time
@@ -226,9 +227,10 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
 
     # loss history, bottom: full curves once; a marker moves along them
     st, LE, LP = hist[:, 0], hist[:, 1], hist[:, 2]
-    axB.axvspan(0, cfg.warmup, color="0.92", lw=0)
-    axB.text(cfg.warmup / 2, 0.97, "pursuer-only\nwarm-up", ha="center", va="top", fontsize=8,
-             transform=axB.get_xaxis_transform())
+    if cfg.warmup:
+        axB.axvspan(0, cfg.warmup, color="0.92", lw=0)
+        axB.text(cfg.warmup / 2, 0.97, "pursuer-only\nwarm-up", ha="center", va="top", fontsize=8,
+                 transform=axB.get_xaxis_transform())
     for k in range(1, cfg.n_iters // cfg.adam_reset_every + 1) if cfg.adam_reset_every else []:
         axB.axvline(cfg.warmup + k * cfg.adam_reset_every * (cfg.n_P_steps + cfg.n_E_steps),
                     color="0.75", ls=":", lw=0.8)
@@ -266,8 +268,8 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
         ltxt.set_text(f"step {int(st[k])}:  L_P = {LP[k]:.3f},  L_E = {LE[k]:.3f}")
         n_cap = int(S["captured"].sum()); n_capable = int(S["capturable"].sum())
         n_cap_c = int((S["captured"] & S["capturable"]).sum())
-        sup.set_text(f"Baseline{' (capture-truncated loss)' if cfg.truncate else ''} training "
-                     f"(init seed 0, IC seed 0): {labels[i]}   |   "
+        sup.set_text(f"Baseline{' (capture-truncated loss)' if cfg.truncate else ''}, warm-up {cfg.warmup}, "
+                     f"{cfg.n_P_steps}:{cfg.n_E_steps} steps (init seed 0, IC seed 0): {labels[i]}   |   "
                      f"captured {n_cap} of {n_h} heads ({n_cap_c} of the {n_capable} capturable)   |   "
                      f"frame {i + 1}/{len(sims)}")
         return []
@@ -299,11 +301,17 @@ def main():
     ap.add_argument("--format", default="mp4", choices=["mp4", "gif"])
     ap.add_argument("--left", default="lifted", choices=["lifted", "flat"])
     ap.add_argument("--truncate", action="store_true", help="train with the capture-truncated distance term")
+    ap.add_argument("--warmup", type=int, default=None, help="pursuer-only warm-up steps (default 1500)")
+    ap.add_argument("--psteps", type=int, default=None, help="pursuer steps per evader step (default 3)")
     ap.add_argument("--legend", default="panels", choices=["panels", "middle"])
     a = ap.parse_args()
     out = os.path.join(HERE, "figs", a.name)
     os.makedirs(out, exist_ok=True)
     cfg = pt.Config(truncate=a.truncate)
+    if a.warmup is not None:
+        cfg = replace(cfg, warmup=a.warmup)
+    if a.psteps is not None:
+        cfg = replace(cfg, n_P_steps=a.psteps)
     if a.snapshots:
         z = np.load(a.snapshots)
         if "loss_hist" not in z.files:
