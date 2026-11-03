@@ -111,7 +111,7 @@ def main():
     ax.set_xticks(xpos); ax.set_xticklabels(xlab, fontsize=8); ax.set_ylim(0.8, 10); ax.set_ylabel("participation ratio")
     ax.set_title("Strategy PR(Z) and latent PR(H), evader (blue) and pursuer (orange); 100 runs per setup, "
                  "median and IQR; capture-truncated loss", fontsize=9.5)
-    ax.legend(fontsize=8, loc="upper right"); ax.grid(alpha=0.25, axis="y")
+    ax.legend(fontsize=8, loc="lower right"); ax.grid(alpha=0.25, axis="y")
     fig.tight_layout()
     for ext in ("png", "pdf"):
         fig.savefig(os.path.join(FIG, f"protocol_split_pr.{ext}"), dpi=150, bbox_inches="tight")
