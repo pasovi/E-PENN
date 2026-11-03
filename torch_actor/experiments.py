@@ -25,7 +25,7 @@ Stages (python3 torch_actor/experiments.py [stage ...]; default: all):
   r1_trunc_k0_d4  same with a 4-layer tanh body (16 units each) instead of 1 layer
   r1_trunc_k0_d4_lr0.1  same with both learning rates 10x smaller (1e-3 / 1e-4)
   r1_trunc_d4, r1_trunc_d4_lr0.1  the 4-layer body with the Fourier features (K = 12)
-  r1_trunc_w0_p1_e3   no warm-up, 1 pursuer : 3 evader steps per iteration (truncated loss)
+  r1_trunc_w0_p1_e3, r1_trunc_w1500_p1_e3   1 pursuer : 3 evader steps per iteration, warm-up 0 / 1500 (truncated loss)
   r1_trunc_w1500_p1, r1_trunc_w0_p3, r1_trunc_w0_p1  protocol split: warm-up 1500 or 0,
             3:1 or 1:1 pursuer:evader steps (the benchmark r1_trunc is warm-up 1500, 3:1)
 Devices: batches of >= 20 runs go to the Mac GPU in float32 when available; the
@@ -391,7 +391,8 @@ STAGES = {"r1": stage_r1, "r1_trunc": lambda: stage_r1(truncate=True),
           "r1_trunc_w1500_p1": lambda: stage_r1(truncate=True, warmup=1500, n_P_steps=1),
           "r1_trunc_w0_p3": lambda: stage_r1(truncate=True, warmup=0, n_P_steps=3),
           "r1_trunc_w0_p1": lambda: stage_r1(truncate=True, warmup=0, n_P_steps=1),
-          "r1_trunc_w0_p1_e3": lambda: stage_r1(truncate=True, warmup=0, n_P_steps=1, n_E_steps=3), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
+          "r1_trunc_w0_p1_e3": lambda: stage_r1(truncate=True, warmup=0, n_P_steps=1, n_E_steps=3),
+          "r1_trunc_w1500_p1_e3": lambda: stage_r1(truncate=True, warmup=1500, n_P_steps=1, n_E_steps=3), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
           "dv": stage_dv, "protocols": stage_protocols, "honest": stage_honest,
           "shapley": stage_shapley}
 

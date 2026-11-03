@@ -30,7 +30,7 @@ plt.rcParams.update({
 CATS = [("gram_pr", "Gram PR\n(Prop. 1)"), ("tpr_U", "temporal PR\nof $u$"), ("tpr_Z", "temporal PR\nof $z$ (legacy)"),
         ("pr_H_unc", "PR$(H)$\nuncentred"), ("pr_H", "PR$(H)$\ncentred (legacy)")]
 LABEL = {"r1": "draft loss", "r1_trunc": "capture-truncated loss", "r1_trunc_w0_p3": "capture-truncated loss",
-         "r1_trunc_w0_p1_e3": "capture-truncated loss"}
+         "r1_trunc_w0_p1_e3": "capture-truncated loss", "r1_trunc_w1500_p1_e3": "capture-truncated loss"}
 
 
 def load(tag):
