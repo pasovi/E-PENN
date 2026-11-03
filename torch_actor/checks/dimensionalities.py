@@ -29,7 +29,8 @@ plt.rcParams.update({
     "figure.dpi": 150, "savefig.bbox": "tight", "lines.linewidth": 1.6})
 CATS = [("gram_pr", "Gram PR\n(Prop. 1)"), ("tpr_U", "temporal PR\nof $u$"), ("tpr_Z", "temporal PR\nof $z$ (legacy)"),
         ("pr_H_unc", "PR$(H)$\nuncentred"), ("pr_H", "PR$(H)$\ncentred (legacy)")]
-LABEL = {"r1": "draft loss", "r1_trunc": "capture-truncated loss"}
+LABEL = {"r1": "draft loss", "r1_trunc": "capture-truncated loss", "r1_trunc_w0_p3": "capture-truncated loss",
+         "r1_trunc_w0_p1_e3": "capture-truncated loss"}
 
 
 def load(tag):
@@ -41,6 +42,7 @@ def load(tag):
             G[f"{a}.{k}"] = np.array([r["full"]["14000"][a][src][k] for r in recs])
     G["gram_pr_saddle"] = np.array([r["saddle"]["gram_pr_saddle"] for r in recs])
     G["warmup"] = recs[0]["config"]["warmup"]; G["steps"] = recs[0]["config"]["n_P_steps"]
+    G["esteps"] = recs[0]["config"].get("n_E_steps", 1)
     G["truncate"] = recs[0].get("truncate", False)
     return G
 
@@ -72,7 +74,7 @@ def main(tag="r1_trunc", ref_tag="r1", out=None):
     ax.set_xticks(range(len(CATS))); ax.set_xticklabels([c[1] for c in CATS])
     ax.set_ylabel("participation ratio"); ax.set_xlim(-0.6, len(CATS) - 0.4)
     ax.legend(loc="upper left", bbox_to_anchor=(0.0, 0.93), ncol=1)
-    proto = f"warm-up {G['warmup']}, {G['steps']}:1"
+    proto = f"warm-up {G['warmup']}, {G['steps']}:{G['esteps']}"
     ax.set_title(f"Ensemble and latent dimensionality over {len(G['E.gram_pr'])} runs (10 init seeds x 10 IC sets), "
                  f"{LABEL.get(tag, tag)}, {proto}", loc="left", fontsize=8.5)
     out = out or f"{tag}_dimensionalities"

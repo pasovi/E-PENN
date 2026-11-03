@@ -1,6 +1,6 @@
-"""Protocol split under the capture-truncated loss: warm-up {1500, 0} x steps {3:1, 1:1}.
+"""Protocol split under the capture-truncated loss: warm-up {1500, 0} x steps {3:1, 1:1}, plus no warm-up 1:3.
 
-Reads the four 100-run grids (checks/results/r1_trunc*, rev2 record format) and writes
+Reads the five 100-run grids (checks/results/r1_trunc*, rev2 record format) and writes
   paper/figs/protocol_split_game.png/.pdf   capture time vs initial distance and capture
                                             fractions (the r1_game figure, one row per setup)
   paper/figs/protocol_split_pr.png/.pdf     PR(Z) and PR(H) of evader and pursuer per setup
@@ -21,7 +21,8 @@ RES = os.path.join(HERE, "checks", "results")
 FIG = os.path.join(HERE, "paper", "figs")
 os.makedirs(FIG, exist_ok=True)
 SETUPS = [("r1_trunc", "warm-up 1500, 3:1 (benchmark)"), ("r1_trunc_w1500_p1", "warm-up 1500, 1:1"),
-          ("r1_trunc_w0_p3", "no warm-up, 3:1"), ("r1_trunc_w0_p1", "no warm-up, 1:1")]
+          ("r1_trunc_w0_p3", "no warm-up, 3:1"), ("r1_trunc_w0_p1", "no warm-up, 1:1"),
+          ("r1_trunc_w0_p1_e3", "no warm-up, 1:3 (1 P : 3 E)")]
 C_E, C_P, C_BR = "#2a78d6", "#eb6834", "#1baf7a"
 
 
@@ -87,7 +88,7 @@ def main():
              ("tPR(u)", "E", lambda f: f["E"]["ens"]["tpr_U"]), ("tPR(u)", "P", lambda f: f["P"]["ens"]["tpr_U"]),
              ("PR(H) unc", "E", lambda f: f["E"]["lat"]["pr_H_unc"]), ("PR(H) unc", "P", lambda f: f["P"]["lat"]["pr_H_unc"]),
              ("band ratio P/E", "", lambda f: f["P"]["band"]["band_11_50_U"] / f["E"]["band"]["band_11_50_U"])]
-    fig, ax = plt.subplots(figsize=(11, 4.6))
+    fig, ax = plt.subplots(figsize=(13.5, 4.6))
     rng = np.random.default_rng(0)
     xpos, xlab = [], []
     for s_i, (tag, label) in enumerate(SETUPS):

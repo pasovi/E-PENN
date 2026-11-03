@@ -241,7 +241,7 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
     vline = axB.axvline(0, color="k", lw=1)
     ltxt = axB.text(0.995, 0.95, "", ha="right", va="top", fontsize=9, transform=axB.transAxes,
                     bbox=dict(boxstyle="round", fc="white", ec="0.7"))
-    axB.set_xlim(0, st[-1]); axB.set_xlabel("gradient step (warm-up: 1 per step; self-play: 3 P + 1 E per iteration)")
+    axB.set_xlim(0, st[-1]); axB.set_xlabel(f"gradient step (warm-up: 1 per step; self-play: {cfg.n_P_steps} P + {cfg.n_E_steps} E per iteration)")
     axB.set_ylabel("loss"); axB.legend(fontsize=8, loc="center right")
     axB.set_title("Loss history of Eq. (1); dotted = Adam resets; marker = current frame", fontsize=10)
     axB.grid(alpha=0.25)
@@ -303,6 +303,7 @@ def main():
     ap.add_argument("--truncate", action="store_true", help="train with the capture-truncated distance term")
     ap.add_argument("--warmup", type=int, default=None, help="pursuer-only warm-up steps (default 1500)")
     ap.add_argument("--psteps", type=int, default=None, help="pursuer steps per evader step (default 3)")
+    ap.add_argument("--esteps", type=int, default=None, help="evader steps per iteration (default 1)")
     ap.add_argument("--legend", default="panels", choices=["panels", "middle"])
     a = ap.parse_args()
     out = os.path.join(HERE, "figs", a.name)
@@ -312,6 +313,8 @@ def main():
         cfg = replace(cfg, warmup=a.warmup)
     if a.psteps is not None:
         cfg = replace(cfg, n_P_steps=a.psteps)
+    if a.esteps is not None:
+        cfg = replace(cfg, n_E_steps=a.esteps)
     if a.snapshots:
         z = np.load(a.snapshots)
         if "loss_hist" not in z.files:
