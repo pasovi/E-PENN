@@ -37,6 +37,7 @@ ensemble statistics over the grid are reproducible across machines.
 | `checks/` | the checking layer: `core.py` + `metrics.py` (rev2 metrics, read the torch checkpoints), `analyze_r1.py` (R1 census), `visualize_actor.py` (torus / lifted-plane / 3D / headings / latent figures of one run), `animate_training.py` (training-evolution videos), `dimensionalities.py` (Gram PR / temporal PR / PR(H) panel of any grid) |
 | `checks/{ckpt,results}/<grid>/` | the 100-run grids of every experiment so far (rev2 record format, one JSON per run); `checks/figs/` their figures and videos |
 | `baseline_D4/` | **the current benchmark**: driver, 100-run grid (`ckpt/`, `results/`), figures, video, `summary.json`, `config.json` |
+| `baseline_D4_w1500/` | the same run with the 1,500-step pursuer warm-up (control; same layout) |
 | `paper/` | the draft's experiments re-run with the port (29 Oct 2026); `paper/README.md` compares the numbers with the draft |
 | `test_parity.py`, `bench.py`, `run_grid.py`, `compare_r1.py`, `numpy_reference.py`, `results/` | the port's gate against the NumPy backward pass, timing, and the first grid comparisons (`PORT_NOTES.md`) |
 
@@ -50,7 +51,8 @@ ensemble statistics over the grid are reproducible across machines.
 | `r1_trunc_k0_d4`, `..._lr0.1` | 4-layer body on `t` alone, at lr and lr/10 | saturates at lr; at lr/10 capture 86%, PR(H) 1.1 |
 | `r1_trunc_d4`, `r1_trunc_d4_lr0.1` | 4-layer body with Fourier features | PR(H) 1.8 / 1.2 at lr/10, capture 92%: the PR(H) overhead is a one-layer effect |
 | `r1_trunc_w{1500,0}_p{3,1}`, `..._p1_e3` | protocol split (warm-up x step ratio) | warm-up irrelevant; 3:1 -> 90% capture, 1:1 -> 55–65%, 1:3 -> 0.5% |
-| `baseline_D4` | 4 layers, K = 12, lr 1e-3 / 1e-4, no warm-up, 3:1 | see `baseline_D4/README.md` |
+| `baseline_D4` | 4 layers, K = 12, lr 1e-3 / 1e-4, no warm-up, 3:1 | capture 91.7%, Gram PR 1.92, PR(H) unc 1.0; see `baseline_D4/README.md` |
+| `baseline_D4_w1500` | the same with warm-up 1500 | identical ensemble (capture 92.2%) |
 
 ## Typical commands
 

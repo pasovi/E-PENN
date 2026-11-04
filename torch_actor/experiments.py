@@ -27,6 +27,7 @@ Stages (python3 torch_actor/experiments.py [stage ...]; default: all):
   r1_trunc_d4, r1_trunc_d4_lr0.1  the 4-layer body with the Fourier features (K = 12)
   baseline_D4         the working benchmark (4-layer body, K = 12, lr 1e-3 / 1e-4, no warm-up, 3:1,
                       truncated loss) -> baseline_D4/{ckpt,results}/ ; see baseline_D4/README.md
+  baseline_D4_w1500   the same with the 1,500-step pursuer warm-up -> baseline_D4_w1500/
   r1_trunc_w0_p1_e3, r1_trunc_w1500_p1_e3   1 pursuer : 3 evader steps per iteration, warm-up 0 / 1500 (truncated loss)
   r1_trunc_w1500_p1, r1_trunc_w0_p3, r1_trunc_w0_p1  protocol split: warm-up 1500 or 0,
             3:1 or 1:1 pursuer:evader steps (the benchmark r1_trunc is warm-up 1500, 3:1)
@@ -402,7 +403,9 @@ STAGES = {"r1": stage_r1, "r1_trunc": lambda: stage_r1(truncate=True),
           "r1_trunc_w0_p1_e3": lambda: stage_r1(truncate=True, warmup=0, n_P_steps=1, n_E_steps=3),
           "r1_trunc_w1500_p1_e3": lambda: stage_r1(truncate=True, warmup=1500, n_P_steps=1, n_E_steps=3),
           "baseline_D4": lambda: stage_r1(truncate=True, depth=4, lr_scale=0.1, warmup=0, tag="baseline_D4",
-                                          root=os.path.join(HERE, "baseline_D4")), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
+                                          root=os.path.join(HERE, "baseline_D4")),
+          "baseline_D4_w1500": lambda: stage_r1(truncate=True, depth=4, lr_scale=0.1, warmup=1500, tag="baseline_D4_w1500",
+                                                root=os.path.join(HERE, "baseline_D4_w1500")), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
           "dv": stage_dv, "protocols": stage_protocols, "honest": stage_honest,
           "shapley": stage_shapley}
 

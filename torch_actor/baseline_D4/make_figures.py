@@ -1,15 +1,16 @@
-"""Figures and summary numbers of the baseline_D4 benchmark (run first: python3 torch_actor/experiments.py baseline_D4).
+"""Figures and summary numbers of a benchmark folder (run first: python3 torch_actor/experiments.py <folder name>).
+The folder name (baseline_D4, baseline_D4_w1500, ...) is the stage name and the label in the figures.
 
-Reads  baseline_D4/results/grid_*.json (100 runs, rev2 record format) and baseline_D4/ckpt/grid_i0_c0.npz
-Writes baseline_D4/figs/
+Reads  <folder>/results/grid_*.json (100 runs, rev2 record format) and <folder>/ckpt/grid_i0_c0.npz
+Writes <folder>/figs/
          game.png/.pdf               capture time vs initial distance and capture fractions (the r1_game figure)
          dimensionalities.png/.pdf   Gram PR, temporal PR, PR(H) strips; diamonds = the 1-layer truncated baseline
          fig_torus_trajectories.png, fig_lifted.png, fig_torus3d.png, fig_headings.png, fig_latent.png,
          head_table.md               the static views of run (init seed 0, IC seed 0)
-       baseline_D4/summary.json      ensemble medians [IQR] and the same numbers for the 1-layer truncated baseline
-       baseline_D4/config.json       every hyperparameter of the run
+       <folder>/summary.json      ensemble medians [IQR] and the same numbers for the 1-layer truncated baseline
+       <folder>/config.json       every hyperparameter of the run
 The evolution video (figs/training_evolution_flat_6heads.mp4) is made by checks/animate_training.py; see README.md.
-Usage: python3 torch_actor/baseline_D4/make_figures.py
+Usage: python3 torch_actor/<folder>/make_figures.py
 """
 import glob
 import json
@@ -22,6 +23,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NAME = os.path.basename(HERE)          # baseline_D4, baseline_D4_w1500, ...
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, "checks"))
 import dimensionalities as D  # noqa: E402
@@ -99,14 +101,14 @@ def summarise(recs):
 def main():
     recs = load(RES)
     if not recs:
-        sys.exit("no records in baseline_D4/results: run `python3 torch_actor/experiments.py baseline_D4` first")
+        sys.exit(f"no records in {NAME}/results: run `python3 torch_actor/experiments.py {NAME}` first")
     cfg = dict(recs[0]["config"]); cfg["truncate"] = recs[0].get("truncate", True); cfg["depth"] = 4
     json.dump(cfg, open(os.path.join(HERE, "config.json"), "w"), indent=1)
-    figure_game(recs, "baseline_D4")
+    figure_game(recs, NAME)
     D.LABEL["r1_trunc"] = "1-layer truncated baseline (warm-up 1500, lr 1e-2/1e-3)"
-    D.main(RES, "r1_trunc", "dimensionalities", label="baseline_D4 (4-layer body, lr 1e-3/1e-4)", out_dir=FIG)
+    D.main(RES, "r1_trunc", "dimensionalities", label=f"{NAME} (4-layer body, lr 1e-3/1e-4)", out_dir=FIG)
     V.main(os.path.join(HERE, "ckpt", "grid_i0_c0.npz"), FIG)
-    summary = {"baseline_D4": summarise(recs)}
+    summary = {NAME: summarise(recs)}
     ref = load(REF)
     if ref:
         summary["r1_trunc (1-layer truncated baseline, for comparison)"] = summarise(ref)
