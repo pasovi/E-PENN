@@ -41,3 +41,23 @@ at the cut locus but at the eight grid points with displacement (±0.7, ±0.1) o
 origin's images, where the pursuer head of five of them locked onto the wrong image (it ends at
 distance 0.50 from the evader instead of capturing). The other three such points are captured, so
 this is a head-initialisation effect, to be checked over seeds.
+
+## D1_grid1024_seed0 (4 Nov 2026): 32 x 32 grid, 1,024 new heads
+
+Same frozen actor, same protocol and seed, on the 32 x 32 cell-centred grid (616 capturable ICs);
+MPS float32, 34 s for the 1,024 heads (0.59 ms per gradient step: the batch is free on the GPU).
+Figures are PDF only; in the torus map a capturable head that escaped carries a ring coloured by
+the periodic image of the pursuer that it chased (blue (0,0), orange (L,0), purple (0,L), brown (L,L);
+the corner squares use the same colours).
+
+| | 1,024 new ICs |
+|---|---|
+| capture on capturable heads | 90.9 % (560 of 616) |
+| capture on uncapturable heads | 0 % (0 of 408) |
+| T_c / V* on captured heads | 1.015 [1.008, 1.026] |
+| capturable heads that escaped | 56, at geodesic distance 0.60-0.87 (median 0.77); 54 of them chased a non-nearest image (closest approach 0.36-0.55) |
+| Gram PR / constancy of the new heads, E / P | 2.23 / 2.24, 0.94 / 0.94 |
+
+The errors sit in the outer band of each capturable quarter-disc, never near the pursuer, and
+in 54 of 56 cases the head chases an *adjacent* image (the one across the nearer cut-locus line),
+not the diagonal one; the two remaining heads chase the right image and still miss.

@@ -12,7 +12,7 @@ Usage:  python3 torch_actor/transfer_learning/tl.py [--ckpt paper/ckpt/baseline_
             [--grid 10] [--seed 0] [--tag D1_grid100_seed0] [--no-warmup] [--time-only]
 Writes transfer_learning/results/<tag>.json (game statistics of every new head, ensemble statistics
 of the new heads, timing), transfer_learning/results/<tag>.npz (the new heads and the frozen bodies),
-transfer_learning/figs/<tag>_game.png/.pdf and <tag>_torus_map.png/.pdf.
+transfer_learning/figs/<tag>_game.pdf and <tag>_torus_map.pdf.
 """
 from __future__ import annotations
 
@@ -97,8 +97,9 @@ def figure_game(g: dict, cfg: RunConfig, path: str, label: str):
     cap, capt = np.array(g["capturable"]), np.array(g["captured"])
     fig, axes = plt.subplots(1, 2, figsize=(10, 3.6))
     ax = axes[0]
-    ax.scatter(d0, Tc, s=14, color=C_P, alpha=0.7, label="TL heads: $T_c$")
-    ax.scatter(d0, Tbr, s=14, color=C_E, alpha=0.7, label="best response $T_{BR}$")
+    s_pt = 14 if len(d0) <= 200 else 5
+    ax.scatter(d0, Tc, s=s_pt, color=C_P, alpha=0.7, label="TL heads: $T_c$", linewidths=0)
+    ax.scatter(d0, Tbr, s=s_pt, color=C_E, alpha=0.7, label="best response $T_{BR}$", linewidths=0)
     xx = np.linspace(cfg.eps, cfg.reach, 50); ax.plot(xx, (xx - cfg.eps) / cfg.dv, "k-", lw=1.2, label=r"$V^*(\Delta_0)$")
     ax.axvline(cfg.reach, color="0.5", lw=1); ax.text(cfg.reach + 0.02, 1.7, "reach R", fontsize=8, color="0.4")
     ax.set_ylim(0, cfg.t_max + 0.1); ax.set_xlim(0.0, 1.45)
@@ -114,44 +115,56 @@ def figure_game(g: dict, cfg: RunConfig, path: str, label: str):
     ax.set_ylim(0, 1.12); ax.set_ylabel("fraction of heads captured"); ax.grid(alpha=0.3, axis="y")
     ax.set_title("TL pursuer heads (orange) vs best response (blue)", fontsize=9.5)
     fig.tight_layout()
-    for ext in ("png", "pdf"):
-        fig.savefig(f"{path}.{ext}", dpi=150, bbox_inches="tight")
+    fig.savefig(f"{path}.pdf", bbox_inches="tight")
     plt.close(fig)
 
 
-def figure_torus_map(x0: np.ndarray, g: dict, cfg: RunConfig, path: str, label: str):
+CORNER = {(0, 0): "#1f77b4", (1, 0): "#ff7f0e", (0, 1): "#9467bd", (1, 1): "#4b2e1e"}   # image of the pursuer -> colour
+CORNER_NAME = {(0, 0): "(0, 0)", (1, 0): "(L, 0)", (0, 1): "(0, L)", (1, 1): "(L, L)"}
+
+
+def chased_corner(chart) -> tuple:
+    """metrics.py charts are integer images c with min-image displacement E - (P - cL); the pursuer image chased
+    is therefore at -cL, i.e. the corner (0 or L) per axis."""
+    return tuple(int(-c) for c in chart)
+
+
+def figure_torus_map(x0: np.ndarray, g: dict, cfg: RunConfig, path: str, label: str, s_pt: float = 70):
     """The flat torus with one point per new IC: red = captured by its TL pursuer head, green = escaped.
     Dotted circles: the capturable region (geodesic distance <= R from the pursuer's images);
-    dashed lines: the cut locus of the origin (x = L/2, y = L/2)."""
+    dashed lines: the cut locus of the origin (x = L/2, y = L/2).  Capturable heads that escaped get
+    a ring coloured by the periodic image of the pursuer that its head chased (the closest image at the
+    moment of closest approach), one colour per corner; the corner markers carry the same colours."""
     L, R = cfg.L, cfg.reach
     cap, capt = np.array(g["capturable"]), np.array(g["captured"])
-    fig, ax = plt.subplots(figsize=(6.2, 6.2))
+    fig, ax = plt.subplots(figsize=(6.8, 6.8))
     th = np.linspace(0, 2 * np.pi, 200)
     for cx in (0, L):
         for cy in (0, L):
             ax.plot(cx + R * np.cos(th), cy + R * np.sin(th), color="0.55", lw=1.0, ls=":")
     ax.axvline(L / 2, color="0.75", lw=0.9, ls="--"); ax.axhline(L / 2, color="0.75", lw=0.9, ls="--")
-    ax.scatter(x0[capt, 0], x0[capt, 1], s=70, color="#d62728", label=f"captured ({int(capt.sum())})", zorder=3)
-    ax.scatter(x0[~capt, 0], x0[~capt, 1], s=70, color="#2ca02c", label=f"escaped ({int((~capt).sum())})", zorder=3)
-    wrong = cap & ~capt
-    if wrong.any():
-        ax.scatter(x0[wrong, 0], x0[wrong, 1], s=160, facecolor="none", edgecolor="k", lw=1.3,
-                   label=f"capturable but escaped ({int(wrong.sum())})", zorder=4)
+    ax.scatter(x0[capt, 0], x0[capt, 1], s=s_pt, color="#d62728", label=f"captured ({int(capt.sum())})", zorder=3, linewidths=0)
+    ax.scatter(x0[~capt, 0], x0[~capt, 1], s=s_pt, color="#2ca02c", label=f"escaped ({int((~capt).sum())})", zorder=3, linewidths=0)
+    wrong = np.where(cap & ~capt)[0]
+    corners = [chased_corner(g["chart_closest"][j]) for j in wrong]
+    for c in CORNER:
+        idx = [j for j, cj in zip(wrong, corners) if cj == c]
+        if idx:
+            ax.scatter(x0[idx, 0], x0[idx, 1], s=2.4 * s_pt, facecolor="none", edgecolor=CORNER[c], lw=1.4, zorder=4,
+                       label=f"capturable, escaped: chased the image at {CORNER_NAME[c]} ({len(idx)})")
     wrong2 = ~cap & capt
     if wrong2.any():
-        ax.scatter(x0[wrong2, 0], x0[wrong2, 1], s=160, facecolor="none", edgecolor="k", lw=1.3, ls="--",
+        ax.scatter(x0[wrong2, 0], x0[wrong2, 1], s=2.4 * s_pt, facecolor="none", edgecolor="k", lw=1.3, ls="--",
                    label=f"uncapturable but captured ({int(wrong2.sum())})", zorder=4)
-    for cx in (0, L):
-        for cy in (0, L):
-            ax.plot(cx, cy, "s", color="k", ms=7, zorder=5)
-    ax.plot([], [], "s", color="k", label="pursuer start (origin and images)")
+    for (cx, cy), col in CORNER.items():
+        ax.plot(cx * L, cy * L, "s", color=col, ms=9, zorder=5, clip_on=False)
     ax.set_xlim(0, L); ax.set_ylim(0, L); ax.set_aspect("equal")
     ax.set_xlabel("x  (x = 0 and x = L identified)"); ax.set_ylabel("y  (y = 0 and y = L identified)")
-    ax.set_title(f"{label}: outcome per new IC on the flat torus\n"
-                 f"dotted = capturable region (geodesic distance <= R = {R:.2f}); dashed = cut locus of the origin", fontsize=9)
-    ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=2)
-    for ext in ("png", "pdf"):
-        fig.savefig(f"{path}.{ext}", dpi=150, bbox_inches="tight")
+    ax.set_title(f"{label}: outcome per new IC on the flat torus ({len(x0)} heads, {int(cap.sum())} capturable)\n"
+                 f"dotted = capturable region (geodesic distance <= R = {R:.2f}); dashed = cut locus; "
+                 f"squares = pursuer start and its images", fontsize=9)
+    ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.09), ncol=2)
+    fig.savefig(f"{path}.pdf", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -219,9 +232,9 @@ def main():
     np.savez_compressed(os.path.join(RES, tag + ".npz"), x_E0=x0_new, WE=WE, WP=WP,
                         **{f"{k}E": v for k, v in pE_np.items() if k != "W"}, **{f"{k}P": v for k, v in pP_np.items() if k != "W"})
     figure_game(g, rcfg, os.path.join(FIG, tag + "_game"), tag)
-    figure_torus_map(x0_new, g, rcfg, os.path.join(FIG, tag + "_torus_map"), tag)
+    figure_torus_map(x0_new, g, rcfg, os.path.join(FIG, tag + "_torus_map"), tag, s_pt=70 if len(x0_new) <= 200 else 11)
     print(json.dumps(summary, indent=1))
-    print("wrote", os.path.join(RES, tag + ".json/.npz"), "and", os.path.join(FIG, tag + "_{game,torus_map}.png/.pdf"))
+    print("wrote", os.path.join(RES, tag + ".json/.npz"), "and", os.path.join(FIG, tag + "_{game,torus_map}.pdf"))
 
 
 if __name__ == "__main__":
