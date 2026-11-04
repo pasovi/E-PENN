@@ -85,3 +85,22 @@ constant heading, which is what the saddle needs; the failures are heads that di
 from their random initialisation. The D4 protocol's learning rates (1e-3 / 1e-4) were chosen to keep the
 4-layer body from saturating during training; with the body frozen that constraint is gone, so the
 natural check is the same TL with the draft's rates (1e-2 / 1e-3).
+
+### D4_grid1024_seed0_lr1: the same with the draft's learning rates (1e-2 / 1e-3)
+
+| | D4 body, lr 1e-3 / 1e-4 | D4 body, lr 1e-2 / 1e-3 | D1 body, lr 1e-2 / 1e-3 |
+|---|---|---|---|
+| capture on capturable heads | 87.2 % | **75.2 %** | 90.9 % |
+| uncapturable ICs captured | 66 | 14 | 0 |
+| T_c / V* on captured heads | 1.008 [0.55, 1.02] | 1.016 [1.01, 1.03] | 1.015 [1.01, 1.03] |
+| capturable pursuer heads locked on a non-nearest image | 194 | 168 (97 of them escape) | 55 (54 escape) |
+| Gram PR / constancy of the new heads, E / P | 2.25 / 2.01, 0.94 / 1.00 | 2.06 / 2.00, 0.99 / 1.00 | 2.23 / 2.23, 0.94 / 0.94 |
+
+The higher rates fix the evader side (uncapturable captures 66 -> 14, T_c back on V*) but not the
+pursuer side: capture on capturable ICs falls to 75 %, and the escapes now fill bands around the
+lines x, y = 0.7 and 1.3 inside the quarter-discs, wherever a pursuer head has locked onto the
+adjacent image. So the learning rate was only part of the story. The frozen D4 latent is one
+direction, so a new head is a constant heading and the pursuer cannot curve; a wrong-image start
+is then a basin it cannot leave under the min-image distance term. The D1 body's richer latent
+(PR(H) 5-7) lets a new head bend its path and recover, which is why the one-layer body transfers
+better on the pursuer side.
