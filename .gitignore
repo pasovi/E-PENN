@@ -3,5 +3,8 @@ __pycache__/
 .DS_Store
 *.aux
 *.out
-rev2/summary/paper1_summary.log
-rev2/summary/build.log
+original_paper_reproduction/rev2/summary/paper1_summary.log
+original_paper_reproduction/rev2/summary/build.log
+torch_actor/checks_smoke/
+torch_actor/paper_smoke/
+torch_actor/*_smoke/
