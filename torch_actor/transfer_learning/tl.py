@@ -119,7 +119,7 @@ def figure_game(g: dict, cfg: RunConfig, path: str, label: str):
     plt.close(fig)
 
 
-CORNER = {(0, 0): "#1f77b4", (1, 0): "#ff7f0e", (0, 1): "#9467bd", (1, 1): "#4b2e1e"}   # image of the pursuer -> colour
+CORNER = {(0, 0): "#08306b", (1, 0): "#ff7f0e", (0, 1): "#e6b800", (1, 1): "#4b2e1e"}   # image of the pursuer -> colour
 CORNER_NAME = {(0, 0): "(0, 0)", (1, 0): "(L, 0)", (0, 1): "(0, L)", (1, 1): "(L, L)"}
 
 
@@ -177,6 +177,7 @@ def main():
     ap.add_argument("--tag", default=None)
     ap.add_argument("--no-truncate", action="store_true", help="use the draft's untruncated distance term")
     ap.add_argument("--no-warmup", action="store_true", help="skip the 1,500-step pursuer-head warm-up")
+    ap.add_argument("--lr-scale", type=float, default=1.0, help="multiply both learning rates (0.1 for the D4 baseline)")
     ap.add_argument("--device", default="cpu"); ap.add_argument("--dtype", default="float64")
     ap.add_argument("--time-only", action="store_true", help="only time the TL of the grid, write nothing")
     ap.add_argument("--log-every", type=int, default=0)
@@ -187,6 +188,7 @@ def main():
     pE_np, pP_np, x0_train = pt.load_ckpt(a.ckpt)                 # final state (iteration 14,000)
     depth = 1 + len(pt.extra_layers(pE_np))
     cfg = pt.Config(truncate=not a.no_truncate, depth=depth)
+    cfg = replace(cfg, lr_P=cfg.lr_P * a.lr_scale, lr_E=cfg.lr_E * a.lr_scale)
     if a.no_warmup:
         cfg = replace(cfg, warmup=0)
     x0_new = ic_grid(a.grid, cfg.L)
@@ -232,7 +234,7 @@ def main():
     np.savez_compressed(os.path.join(RES, tag + ".npz"), x_E0=x0_new, WE=WE, WP=WP,
                         **{f"{k}E": v for k, v in pE_np.items() if k != "W"}, **{f"{k}P": v for k, v in pP_np.items() if k != "W"})
     figure_game(g, rcfg, os.path.join(FIG, tag + "_game"), tag)
-    figure_torus_map(x0_new, g, rcfg, os.path.join(FIG, tag + "_torus_map"), tag, s_pt=70 if len(x0_new) <= 200 else 11)
+    figure_torus_map(x0_new, g, rcfg, os.path.join(FIG, tag + "_torus_map"), tag, s_pt=70 if len(x0_new) <= 200 else 16)
     print(json.dumps(summary, indent=1))
     print("wrote", os.path.join(RES, tag + ".json/.npz"), "and", os.path.join(FIG, tag + "_{game,torus_map}.pdf"))
 

@@ -61,3 +61,27 @@ the corner squares use the same colours).
 The errors sit in the outer band of each capturable quarter-disc, never near the pursuer, and
 in 54 of 56 cases the head chases an *adjacent* image (the one across the nearer cut-locus line),
 not the diagonal one; the two remaining heads chase the right image and still miss.
+
+## D4_grid1024_seed0 (4 Nov 2026): the D4 baseline body, 32 x 32 grid
+
+Frozen actor: `baseline_D4/ckpt/grid_i0_c0.npz` (4-layer body), with the D4 protocol (no warm-up,
+lr 1e-3 / 1e-4); 1,024 new heads, seed 0, MPS float32, 45 s. Corner colours of the torus map are now
+dark blue (0,0), orange (L,0), yellow (0,L), brown (L,L).
+
+| | D4 body | D1 body (previous section) |
+|---|---|---|
+| capture on capturable heads | 87.2 % (537 of 616) | 90.9 % |
+| capture on uncapturable heads | 16.2 % (66 of 408) | 0 % |
+| T_c / V* on captured heads | 1.008 [0.55, 1.02] | 1.015 [1.008, 1.026] |
+| capturable heads chasing a non-nearest image | 194 | 55 |
+| evader heads whose mean heading points *toward* the pursuer | 314 of 1,024 | — |
+| Gram PR / constancy of the new heads, E / P | 2.25 / 2.01, 0.94 / 1.00 | 2.23 / 2.24, 0.94 / 0.94 |
+
+The D4 transfer is worse on both sides: 66 uncapturable ICs get captured (the evader head runs toward
+the pursuer or stands still: 314 evader heads have a mean heading with negative projection on Δ0), 167
+capturable heads are captured faster than V* for the same reason, and 194 pursuer heads chase a wrong
+image. The frozen D4 body is a near-constant latent (PR(H) uncentred 1.0), so a new head can only pick a
+constant heading, which is what the saddle needs; the failures are heads that did not move far enough
+from their random initialisation. The D4 protocol's learning rates (1e-3 / 1e-4) were chosen to keep the
+4-layer body from saturating during training; with the body frozen that constraint is gone, so the
+natural check is the same TL with the draft's rates (1e-2 / 1e-3).
