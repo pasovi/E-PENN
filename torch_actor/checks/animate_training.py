@@ -102,7 +102,10 @@ def train_with_snapshots(cfg: pt.Config, every: int, device="cpu", dtype=torch.f
 
 
 def legacy(p, r=0):
-    return {"B": p["B"][r], "b_body": p["b"][r], "W": p["W"][r]}
+    d = {"B": p["B"][r], "b_body": p["b"][r], "W": p["W"][r]}
+    for l in pt.extra_layers(p):
+        d[f"B{l}"] = p[f"B{l}"][r]; d[f"b{l}"] = p[f"b{l}"][r]
+    return d
 
 
 def emb(x, L, R0=1.6, r=0.6):
@@ -120,7 +123,7 @@ def wrapped_segments(traj, L):
 
 # ----------------------------------------------------------------- render
 def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
-           heads3d, out_path, fps, heads_left=None, fmt="mp4", left="lifted", legend="panels"):
+           heads3d, out_path, fps, heads_left=None, fmt="mp4", left="lifted", legend="panels", title="Baseline"):
     n_h = x0.shape[0]
     heads_left = list(range(n_h)) if heads_left is None else list(heads_left)
     sims = [simulate(legacy(pE), legacy(pP), x0, cfg_r) for pE, pP in snaps]
@@ -245,7 +248,7 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
     axB.set_ylabel("loss"); axB.legend(fontsize=8, loc="center right")
     axB.set_title("Loss history of Eq. (1); dotted = Adam resets; marker = current frame", fontsize=10)
     axB.grid(alpha=0.25)
-    sup = fig.suptitle("", fontsize=12, y=0.95)
+    sup = fig.suptitle("", fontsize=11, y=0.95)
 
     def update(i):
         S = sims[i]
@@ -268,7 +271,7 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
         ltxt.set_text(f"step {int(st[k])}:  L_P = {LP[k]:.3f},  L_E = {LE[k]:.3f}")
         n_cap = int(S["captured"].sum()); n_capable = int(S["capturable"].sum())
         n_cap_c = int((S["captured"] & S["capturable"]).sum())
-        sup.set_text(f"Baseline{' (capture-truncated loss)' if cfg.truncate else ''}, warm-up {cfg.warmup}, "
+        sup.set_text(f"{title}{' (capture-truncated loss)' if cfg.truncate else ''}, warm-up {cfg.warmup}, "
                      f"{cfg.n_P_steps}:{cfg.n_E_steps} steps (init seed 0, IC seed 0): {labels[i]}   |   "
                      f"captured {n_cap} of {n_h} heads ({n_cap_c} of the {n_capable} capturable)   |   "
                      f"frame {i + 1}/{len(sims)}")
@@ -304,11 +307,16 @@ def main():
     ap.add_argument("--warmup", type=int, default=None, help="pursuer-only warm-up steps (default 1500)")
     ap.add_argument("--psteps", type=int, default=None, help="pursuer steps per evader step (default 3)")
     ap.add_argument("--esteps", type=int, default=None, help="evader steps per iteration (default 1)")
+    ap.add_argument("--depth", type=int, default=1, help="tanh body layers (default 1)")
+    ap.add_argument("--lr-scale", type=float, default=1.0, help="multiply both learning rates (default 1)")
+    ap.add_argument("--outdir", default=None, help="output folder (default checks/figs/<name>)")
+    ap.add_argument("--title", default=None, help="run name in the frame title (default 'Baseline')")
     ap.add_argument("--legend", default="panels", choices=["panels", "middle"])
     a = ap.parse_args()
-    out = os.path.join(HERE, "figs", a.name)
+    out = a.outdir or os.path.join(HERE, "figs", a.name)
     os.makedirs(out, exist_ok=True)
-    cfg = pt.Config(truncate=a.truncate)
+    cfg = pt.Config(truncate=a.truncate, depth=a.depth)
+    cfg = replace(cfg, lr_P=cfg.lr_P * a.lr_scale, lr_E=cfg.lr_E * a.lr_scale)
     if a.warmup is not None:
         cfg = replace(cfg, warmup=a.warmup)
     if a.psteps is not None:
@@ -321,25 +329,26 @@ def main():
             sys.exit("these snapshots have no loss history; retrain without --snapshots")
         labels = [str(l) for l in z["labels"]]; x0 = z["x_E0"]
         snap_step, hist = z["snap_step"], z["loss_hist"]
-        snaps = [({"B": z["BE"][i][None], "b": z["bE"][i][None], "W": z["WE"][i][None]},
-                  {"B": z["BP"][i][None], "b": z["bP"][i][None], "W": z["WP"][i][None]})
+        keys = [k[:-1] for k in z.files if k.endswith("E") and k[0] in "BbW" and k not in ("x_E0",)]
+        snaps = [({k: z[k + "E"][i][None] for k in keys}, {k: z[k + "P"][i][None] for k in keys})
                  for i in range(len(labels))]
         print(f"loaded {len(snaps)} snapshots from {a.snapshots}", flush=True)
     else:
         t0 = time.time()
         snaps, labels, snap_step, hist, x0 = train_with_snapshots(cfg, a.every)
         print(f"trained with {len(snaps)} snapshots in {time.time() - t0:.0f} s", flush=True)
+        arrays = {}
+        for who, idx in (("E", 0), ("P", 1)):
+            for k in snaps[0][idx]:        # B, b, W and, for deep bodies, B2, b2, ...
+                arrays[k + who] = np.stack([s[idx][k][0] for s in snaps])
         np.savez_compressed(os.path.join(out, "training_snapshots.npz"),
-                            labels=np.array(labels), x_E0=x0, snap_step=snap_step, loss_hist=hist,
-                            BE=np.stack([s[0]["B"][0] for s in snaps]), bE=np.stack([s[0]["b"][0] for s in snaps]),
-                            WE=np.stack([s[0]["W"][0] for s in snaps]), BP=np.stack([s[1]["B"][0] for s in snaps]),
-                            bP=np.stack([s[1]["b"][0] for s in snaps]), WP=np.stack([s[1]["W"][0] for s in snaps]))
+                            labels=np.array(labels), x_E0=x0, snap_step=snap_step, loss_hist=hist, **arrays)
     t0 = time.time()
     heads_left = [int(h) for h in a.heads.split(",")] if a.heads else None
     heads3d = heads_left if heads_left is not None else [int(h) for h in a.heads3d.split(",")]
     path = os.path.join(out, f"{a.out}.{a.format}")
     render(snaps, labels, snap_step, hist, x0, RunConfig(), cfg, heads3d, path, a.fps,
-           heads_left=heads_left, fmt=a.format, left=a.left, legend=a.legend)
+           heads_left=heads_left, fmt=a.format, left=a.left, legend=a.legend, title=a.title or "Baseline")
     print(f"rendered {len(snaps)} frames to {path} in {time.time() - t0:.0f} s")
 
 

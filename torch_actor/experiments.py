@@ -25,6 +25,8 @@ Stages (python3 torch_actor/experiments.py [stage ...]; default: all):
   r1_trunc_k0_d4  same with a 4-layer tanh body (16 units each) instead of 1 layer
   r1_trunc_k0_d4_lr0.1  same with both learning rates 10x smaller (1e-3 / 1e-4)
   r1_trunc_d4, r1_trunc_d4_lr0.1  the 4-layer body with the Fourier features (K = 12)
+  baseline_D4         the working benchmark (4-layer body, K = 12, lr 1e-3 / 1e-4, no warm-up, 3:1,
+                      truncated loss) -> baseline_D4/{ckpt,results}/ ; see baseline_D4/README.md
   r1_trunc_w0_p1_e3, r1_trunc_w1500_p1_e3   1 pursuer : 3 evader steps per iteration, warm-up 0 / 1500 (truncated loss)
   r1_trunc_w1500_p1, r1_trunc_w0_p3, r1_trunc_w0_p1  protocol split: warm-up 1500 or 0,
             3:1 or 1:1 pursuer:evader steps (the benchmark r1_trunc is warm-up 1500, 3:1)
@@ -146,7 +148,8 @@ def r1_record(name, arm, rcfg: RunConfig, out, r, snapshots):
 
 
 def stage_r1(truncate: bool = False, K: int | None = None, depth: int = 1, lr_scale: float = 1.0,
-             warmup: int | None = None, n_P_steps: int | None = None, n_E_steps: int | None = None):
+             warmup: int | None = None, n_P_steps: int | None = None, n_E_steps: int | None = None,
+             tag: str | None = None, root: str | None = None):
     """truncate=True: the 10 x 10 grid only, with the capture-truncated distance term,
     under checks/{ckpt,results}/r1_trunc and paper/ckpt/baseline_trunc.
     K: input harmonics (K = 0: the body sees only t / t_max); tag gets a _k<K> suffix."""
@@ -163,8 +166,13 @@ def stage_r1(truncate: bool = False, K: int | None = None, depth: int = 1, lr_sc
                    n_E_steps=cfg.n_E_steps)
     if K is not None:
         base = replace(base, K=K)
-    tag = (("r1_trunc" if truncate else "r1") + ("" if K is None else f"_k{K}") + ("" if depth == 1 else f"_d{depth}")
-           + ("" if lr_scale == 1.0 else f"_lr{lr_scale:g}") + proto)
+    tag = tag or (("r1_trunc" if truncate else "r1") + ("" if K is None else f"_k{K}") + ("" if depth == 1 else f"_d{depth}")
+                  + ("" if lr_scale == 1.0 else f"_lr{lr_scale:g}") + proto)
+    # root: write <root>/{ckpt,results}/ instead of checks/{ckpt,results}/<tag>/ (self-contained benchmark folders)
+    if root and SMOKE:
+        root = root.rstrip("/") + "_smoke"
+    ckpt_dir = os.path.join(root, "ckpt") if root else os.path.join(CHECKS, "ckpt", tag)
+    res_dir = os.path.join(root, "results") if root else os.path.join(CHECKS, "results", tag)
     arms = {
         "grid": ([(i, c) for c in range(10) for i in range(10)],
                  [f"grid_i{i}_c{c}" for c in range(10) for i in range(10)],
@@ -181,7 +189,7 @@ def stage_r1(truncate: bool = False, K: int | None = None, depth: int = 1, lr_sc
     }
     if truncate or K is not None or depth != 1 or lr_scale != 1.0 or proto:
         arms = {"grid": arms["grid"]}
-    os.makedirs(os.path.join(CHECKS, "results", tag), exist_ok=True)
+    os.makedirs(res_dir, exist_ok=True)
     for arm, (runs, names, rcfgs, over) in arms.items():
         c = smoke(replace(cfg, **over))
         if SMOKE:
@@ -194,11 +202,11 @@ def stage_r1(truncate: bool = False, K: int | None = None, depth: int = 1, lr_sc
         out = pt.train(c, runs=runs, device=dev, dtype=dt, snapshot_fn=pt.light_metrics)
         log(f"{tag}/{arm}: trained in {out['seconds']:.0f} s; scoring with rev2 metrics ...")
         for r, name in enumerate(names):
-            pt.save_run_ckpt(os.path.join(CHECKS, "ckpt", tag, name + ".npz"), c, out, r)
+            pt.save_run_ckpt(os.path.join(ckpt_dir, name + ".npz"), c, out, r)
             rec = r1_record(name, arm, rcfgs[r], out, r, [s[r] for s in out["snapshots"]])
             rec["device"] = f"{dev} {dt}"; rec["truncate"] = truncate
-            dump(rec, os.path.join(CHECKS, "results", tag, name + ".json"))
-        if arm == "grid":   # the published baseline configuration, also under paper/
+            dump(rec, os.path.join(res_dir, name + ".json"))
+        if arm == "grid" and not root:   # the published baseline configuration, also under paper/
             pt.save_run_ckpt(os.path.join(CKPT, ("baseline_trunc" if truncate else "baseline") + ("" if K is None else f"_k{K}")
                                           + ("" if depth == 1 else f"_d{depth}") + ("" if lr_scale == 1.0 else f"_lr{lr_scale:g}") + proto,
                                           "grid_i0_c0.npz"), c, out, 0)
@@ -392,7 +400,9 @@ STAGES = {"r1": stage_r1, "r1_trunc": lambda: stage_r1(truncate=True),
           "r1_trunc_w0_p3": lambda: stage_r1(truncate=True, warmup=0, n_P_steps=3),
           "r1_trunc_w0_p1": lambda: stage_r1(truncate=True, warmup=0, n_P_steps=1),
           "r1_trunc_w0_p1_e3": lambda: stage_r1(truncate=True, warmup=0, n_P_steps=1, n_E_steps=3),
-          "r1_trunc_w1500_p1_e3": lambda: stage_r1(truncate=True, warmup=1500, n_P_steps=1, n_E_steps=3), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
+          "r1_trunc_w1500_p1_e3": lambda: stage_r1(truncate=True, warmup=1500, n_P_steps=1, n_E_steps=3),
+          "baseline_D4": lambda: stage_r1(truncate=True, depth=4, lr_scale=0.1, warmup=0, tag="baseline_D4",
+                                          root=os.path.join(HERE, "baseline_D4")), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
           "dv": stage_dv, "protocols": stage_protocols, "honest": stage_honest,
           "shapley": stage_shapley}
 

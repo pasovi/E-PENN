@@ -2,7 +2,7 @@
 
 The runs are chaotic, so individual runs are not expected to match; the ensemble
 distributions are.  Reads <grid>/summary.json (from run_grid.py) and, if present,
-the repository's rev2/results/r1/grid_*.json.
+the repository's original_paper_reproduction/rev2/results/r1/grid_*.json.
 Usage: python3 torch_actor/compare_r1.py torch_actor/results/grid100
 """
 import glob
@@ -13,7 +13,7 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-R1 = os.path.join(os.path.dirname(HERE), "rev2", "results", "r1")
+R1 = os.path.join(os.path.dirname(HERE), "original_paper_reproduction", "rev2", "results", "r1")
 KEYS = [("E", "gram_pr"), ("E", "constancy"), ("E", "pr_H"), ("E", "tpr_U"),
         ("P", "gram_pr"), ("P", "constancy"), ("P", "pr_H"), ("P", "tpr_U")]
 

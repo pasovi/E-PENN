@@ -34,7 +34,9 @@ LABEL = {"r1": "draft loss", "r1_trunc": "capture-truncated loss", "r1_trunc_w0_
 
 
 def load(tag):
-    recs = [json.load(open(f)) for f in sorted(glob.glob(os.path.join(HERE, "results", tag, "grid_*.json")))]
+    """tag: a grid name under checks/results/, or a path to a directory of grid_*.json records."""
+    d = tag if os.path.isdir(tag) else os.path.join(HERE, "results", tag)
+    recs = [json.load(open(f)) for f in sorted(glob.glob(os.path.join(d, "grid_*.json")))]
     G = {}
     for a in "EP":
         for k, _ in CATS:
@@ -56,8 +58,10 @@ def strip(ax, x, vals, color, label=None, w=0.28):
     ax.plot([x, x], [q1, q3], color=INK, lw=0.9, zorder=3)
 
 
-def main(tag="r1_trunc", ref_tag="r1", out=None):
+def main(tag="r1_trunc", ref_tag="r1", out=None, label=None, out_dir=None):
+    """out_dir: folder for the figure (default checks/figs); label: run name in the title (default LABEL[tag])."""
     G, R = load(tag), (load(ref_tag) if ref_tag else None)
+    LABEL.setdefault(tag, label or os.path.basename(os.path.normpath(tag)))
     fig, ax = plt.subplots(figsize=(7.0, 3.3))
     for i, (k, _) in enumerate(CATS):
         for a, col, off in (("E", C_E, -0.19), ("P", C_P, 0.19)):
@@ -76,12 +80,13 @@ def main(tag="r1_trunc", ref_tag="r1", out=None):
     ax.legend(loc="upper left", bbox_to_anchor=(0.0, 0.93), ncol=1)
     proto = f"warm-up {G['warmup']}, {G['steps']}:{G['esteps']}"
     ax.set_title(f"Ensemble and latent dimensionality over {len(G['E.gram_pr'])} runs (10 init seeds x 10 IC sets), "
-                 f"{LABEL.get(tag, tag)}, {proto}", loc="left", fontsize=8.5)
-    out = out or f"{tag}_dimensionalities"
+                 f"{LABEL[tag]}, {proto}", loc="left", fontsize=8.5)
+    out = out or f"{os.path.basename(os.path.normpath(tag))}_dimensionalities"
+    out_dir = out_dir or os.path.join(HERE, "figs")
     for ext in ("png", "pdf"):
-        fig.savefig(os.path.join(HERE, "figs", f"{out}.{ext}"))
+        fig.savefig(os.path.join(out_dir, f"{out}.{ext}"))
     plt.close(fig)
-    print("wrote", os.path.join(HERE, "figs", out + ".png/.pdf"))
+    print("wrote", os.path.join(out_dir, out + ".png/.pdf"))
 
 
 if __name__ == "__main__":
