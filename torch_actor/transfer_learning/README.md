@@ -104,3 +104,26 @@ direction, so a new head is a constant heading and the pursuer cannot curve; a w
 is then a basin it cannot leave under the min-image distance term. The D1 body's richer latent
 (PR(H) 5-7) lets a new head bend its path and recover, which is why the one-layer body transfers
 better on the pursuer side.
+
+## A D4 body trained on 100 heads (`train_body.py`, 4 Nov 2026)
+
+`train_body.py` trains one multi-head actor with n_h random ICs under the baseline_D4 pipeline and
+saves it under `bodies/` (checkpoint, record, and `figs/<tag>_game.pdf` of its training heads).
+`D4_h100_i0_c0`: 100 heads, init seed 0, IC seed 0, MPS float32, 67 s. Training heads: capture
+90.9 % of the 55 capturable, T_c / V* 1.008, Gram PR 2.06 / 2.00, η 0.99 / 1.00, PR(H) uncentred
+1.11 / 1.01: the same rank-2 game and near-constant latent as with 16 heads.
+
+TL of 1,024 heads on it (`D4h100_grid1024_seed0`, D4 protocol, 42 s):
+
+| frozen body | D4, 100 training heads | D4, 16 training heads | D1, 16 training heads |
+|---|---|---|---|
+| capture on capturable heads | 86.9 % | 87.2 % | 90.9 % |
+| uncapturable ICs captured | 87 | 66 | 0 |
+| T_c / V* on captured heads | 1.006 [0.61, 1.02] | 1.008 [0.55, 1.02] | 1.015 [1.01, 1.03] |
+| capturable pursuer heads on a non-nearest image | 205 | 194 | 55 |
+| PR(H) of the frozen body, uncentred E / P | 1.11 / 1.01 | 1.01 / 1.00 | 2.01 / 3.99 |
+
+Six times more training heads do not change the transfer: the body still collapses to one latent
+direction because the 100 training heads need nothing else, and the new heads fail in the same way.
+What the transfer needs is time variation in the latent, which more constant-heading training ICs
+cannot provide.
