@@ -198,3 +198,74 @@ Recommended baseline ladder (each level adds one thing):
 C2 is exact zero-sum with three terms and a horizon that reaches heads. The simplest honest
 game is a single zero-sum payoff that is itself the game of degree whose saddle is known in
 closed form, and the paper's "disclosed exception" (shaping = value) is that game.
+
+## 7. Forcing the latent not to collapse: the PR(H) regulariser (2 Nov 2026)
+
+Question: does the Gram PR ≤ 2 reduction of the heading ensemble survive when the latent is
+*not* allowed to reduce? Tool: `pursuit_evasion_numpy.pr_latent_reg`, an additive per-player
+term `R_a = λ (n_b − PR(⟨H_a H_aᵀ⟩_t))` on the *uncentred* second moment of the body output
+(gradient injected into `backward_dirs` via `dH_extra`; whole-loss finite-difference check
+passes). Pilot flags: `--lam-pr λ [--pr-centred] [--pr-target]`. Runs: `viz/pilot_integ_tmax1.5_*lampr*`,
+logs `viz/pilot_lampr_sweep.log`, `viz/pilot_lampr_long.log`. L0 pilot settings (t_max 1.5, 1:1, lr 3e-3).
+
+Note on the name: a *sparsity* (L1) penalty would concentrate the spectrum, i.e. lower PR(H).
+What is wanted is the opposite, a spectrum-flattening / anti-collapse term; PR is scale-invariant
+and is the statistic we already report, so it is used directly. Whitening loss
+‖n_b M/tr M − I‖²_F = n_b(n_b/PR − 1) is the same thing reparametrised.
+
+Results (seed 0, 3000 iters unless stated; E/P):
+
+| run | PR(H) centred | PR(H) uncentred | Gram PR | constancy η | J |
+|---|---|---|---|---|---|
+| λ = 0 (L0 pilot) | 6.97 / 7.38 | 3.12 / 4.07 | 2.01 / 2.02 | 0.993 / 0.988 | 0.7735 |
+| λ = 0.003 | 14.1 / 14.3 | 14.9 / 15.1 | 2.60 / 2.70 | 0.836 / 0.818 | 0.7735 |
+| λ = 0.01 … 1 | 14.1–14.4 | 15.0–15.2 | 2.3–2.7 | 0.78–0.89 | 0.760–0.775 |
+| λ = 0.1, 10k iters | 14.3 / 14.3 | 15.1 / 15.1 | 2.15 / 2.16 | 0.929 / 0.916 | 0.7689 |
+| λ = 1, 10k iters | 14.2 / 14.3 | 15.0 / 15.1 | 2.12 / 2.15 | 0.952 / 0.949 | 0.7604 |
+| λ = 0.1 **centred** | 14.3 / 14.3 | 2.6 / 3.5 | 1.99 / 1.99 | 1.000 / 0.999 | 0.7652 |
+| seeds 1, 2, λ = 0 | 6.5 / 6.5 | 2.8–3.9 | 1.95–1.99 | 0.997–0.998 | 0.751–0.757 |
+| seeds 1, 2, λ = 0.1 | 14.2–14.5 | 15.0–15.3 | 2.18–2.45 | 0.80–0.94 | 0.751–0.766 |
+
+Reading:
+1. **The regulariser is almost free.** Already at λ = 0.003 the uncentred PR(H) saturates at
+   ≈ 15 of 16, at no cost in J (the game value stays at the saddle-ish 0.77 ± 0.01). The network
+   can make its latent isotropic without changing the strategies it plays.
+2. **The rank-2 reduction of the strategy ensemble survives.** Gram PR goes 2.0 → 2.2–2.7 at
+   3k iterations and comes back to 2.1–2.2 by 10k; η dips to 0.8–0.9 then recovers to 0.92–0.95
+   and is still rising. So the reduction is *not* inherited from a collapsed latent.
+3. **Mechanism: the heads go rank 1.** Under any λ > 0 the per-head singular-value ratio s₂/s₁
+   drops from a median 0.34–0.49 (λ = 0) to 0.000 (max over heads ≤ 0.07). Each head becomes
+   `z^j(t) = (w^j·H(t)) e^j`: a fixed direction e^j times a scalar, so all latent time variation
+   is *radial* (99.9–100 % of Var_t z^j lies along the mean heading, vs 94–98 % at λ = 0) and is
+   discarded by the normalisation `û = z/|z|`. The coefficient of variation of |z^j(t)| doubles
+   (0.2 → 0.55–0.65). This is Lemma 2's gauge freedom used as a dump for the extra latent
+   dimensions: the regulariser constrains `H`, the game constrains `û`, and the rank-1 heads
+   make the two independent. The legacy PR(Z) ("tpr_Z") jumps to 2–5.5 for the same reason,
+   confirming again that it is not the right statistic.
+4. **The residual η < 1 is sign flips, nothing else.** For rank-1 heads `û^j = sign(w^j·H) e^j`;
+   where `w^j·H(t)` crosses zero the heading flips by 180° for a short stretch. Per head the
+   flipped time fraction is 1–10 % (15–16 of 16 heads at 3k), and η computed from these
+   fractions alone, mean (1 − 2 f_j)², reproduces the measured η to three decimals (0.852 vs
+   0.850, 0.781 vs 0.781, …). Off-axis headings (|cos| < 0.99) occupy only 1–2 % of the time.
+   Training removes the flips slowly (η 0.78 → 0.95 by 10k): a flip is a stretch of maximally
+   wrong play that the distance loss penalises, so this is the game winning the tension, as
+   expected.
+5. **The centred version is the predicted loophole.** With `--pr-centred` the body keeps a
+   large constant mean plus tiny isotropic wiggles: centred PR(H) 14.3, uncentred 2.6–3.5,
+   Gram PR 1.99, η 1.000. It tells us nothing. Regularise (and report) the uncentred moment.
+
+Upshot for the paper: "PR(H) small" and "Gram PR = 2" are logically independent in this
+architecture. The ensemble reduction is a statement about the heads and the game, and a
+latent of any PR can carry it, because linear heads followed by a normalisation can route an
+arbitrary number of latent directions into the discarded radial component. A latent PR
+measurement therefore cannot by itself support the "the embedding reduces to the game's
+dimension" reading; the gauge-fixed head rank (`erank_gf`) and the Gram PR are the objects.
+
+Hinge-squared form (added 3 Nov 2026, `--pr-form hinge2 --pr-target 12`, R = λ max(0, PR* − PR)²): the
+term parks the uncentred PR(H) at the target and then switches off. Seed 0, λ = 0.1: Gram PR
+1.98/2.05, η 0.997/0.975 at 3k; 2.01/2.02, η 0.990/0.985 at 10k, PR(H)unc 13.3/12.8. Seeds 1–2 the
+same (Gram PR 2.04–2.15, η 0.95–0.98). Executed analysis notebook with all figures:
+`viz/analysis_pr_regulariser.ipynb` (figures saved to `viz/pr_reg_analysis/`).
+
+Cleaner control still to run: bypass the body and feed the heads `φ(t)` directly (H = φ,
+exactly isotropic with PR = 2K + 1 by construction, no λ to tune) and check Gram PR there.

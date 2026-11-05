@@ -88,9 +88,13 @@ def forward_dirs(params: dict, phi: np.ndarray) -> tuple[np.ndarray, dict]:
     return u, cache
 
 
-def backward_dirs(params: dict, cache: dict, du: np.ndarray) -> dict:
+def backward_dirs(params: dict, cache: dict, du: np.ndarray,
+                  dH_extra: np.ndarray | None = None) -> dict:
     """
     Given dL/du of shape (n_h, T, 2), returns gradients of L w.r.t. params.
+    dH_extra : optional (T, n_b) gradient of an additional loss term that
+               depends directly on the latent H (e.g. pr_latent_reg); it is
+               added to dL/dH before back-propagating through the body.
     """
     phi = cache["phi"]
     H = cache["H"]
@@ -105,6 +109,8 @@ def backward_dirs(params: dict, cache: dict, du: np.ndarray) -> dict:
     # z_head[j, t, a] = sum_b W[j, a, b] H[t, b]
     dW = np.einsum("jta,tb->jab", dz_head, H)
     dH = np.einsum("jab,jta->tb", W, dz_head)
+    if dH_extra is not None:
+        dH = dH + dH_extra
 
     # H = tanh(z_body)
     dz_body = (1.0 - H ** 2) * dH
@@ -113,6 +119,51 @@ def backward_dirs(params: dict, cache: dict, du: np.ndarray) -> dict:
     dB = dz_body.T @ phi
     db_body = dz_body.sum(axis=0)
     return {"B": dB, "b_body": db_body, "W": dW}
+
+
+def pr_latent_reg(H: np.ndarray, lam: float, target: float | None = None,
+                  centred: bool = False, form: str = "linear") -> tuple[float, float, np.ndarray]:
+    """
+    Spectrum-flattening regulariser on the latent curve H (T, n_b):
+
+        M  = <H H^T>_t            (uncentred second moment; centred=True uses Cov_t[H])
+        PR = (tr M)^2 / tr(M^2)   (participation ratio, in [1, n_b])
+        form="linear":  R = lam * (target - PR)            (always pushes PR up)
+        form="hinge2":  R = lam * max(0, target - PR)^2    (inactive once PR >= target)
+        target defaults to n_b (isotropic M); e.g. target = 12 with hinge2 asks for
+        "at least 12 effective latent directions" and nothing more.
+
+    Minimising R pushes the latent spectrum towards isotropy (large PR).  PR is
+    scale-invariant, so R cannot be reduced by inflating |H|.  The uncentred
+    form counts the time-mean of H as a direction, so a high PR forces the
+    time-varying part of H to carry energy comparable to the constant part;
+    the centred form leaves the mean free (a loophole: tiny isotropic wiggles
+    around a large constant mean already give PR -> n_b).
+
+    Returns (R, PR, dR/dH) with dR/dH of shape (T, n_b).
+        dPR/dM = (2 a / b) I - (2 a^2 / b^2) M,   a = tr M, b = tr M^2
+        dPR/dH = (2 / T) Hc (dPR/dM)   (then project out the column mean if centred)
+    """
+    T, n_b = H.shape
+    if target is None:
+        target = float(n_b)
+    Hc = H - H.mean(axis=0, keepdims=True) if centred else H
+    Mm = Hc.T @ Hc / T
+    a = float(np.trace(Mm))
+    b = float((Mm * Mm).sum())
+    pr = a * a / b
+    dPR_dM = (2.0 * a / b) * np.eye(n_b) - (2.0 * a * a / (b * b)) * Mm
+    dPR_dH = (2.0 / T) * Hc @ dPR_dM
+    if centred:
+        dPR_dH = dPR_dH - dPR_dH.mean(axis=0, keepdims=True)
+    if form == "linear":
+        R, dR_dPR = lam * (target - pr), -lam
+    elif form == "hinge2":
+        gap = max(0.0, target - pr)
+        R, dR_dPR = lam * gap ** 2, -2.0 * lam * gap
+    else:
+        raise ValueError(f"unknown form {form!r}")
+    return R, pr, dR_dPR * dPR_dH
 
 
 # =============================================================================
