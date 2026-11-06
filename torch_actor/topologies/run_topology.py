@@ -1,10 +1,12 @@
-"""Baseline D1 pipeline on S^1 or T^3: multi-head (MH) training, then transfer learning (TL) of new
+"""Baseline D1 pipeline on S^1, T^3 or T^4: multi-head (MH) training, then transfer learning (TL) of new
 heads on the frozen bodies, with the figures used for T^2.
 
 Usage:  python3 torch_actor/topologies/run_topology.py --dim 1 --n-heads 16 --tl-grid 100
         python3 torch_actor/topologies/run_topology.py --dim 3 --n-heads 64 --tl-grid 10 --device mps --dtype float32
-(--tl-grid n: n^dim cell-centred new ICs.)  Outputs under topologies/{results,figs}/<name>_... with
-name = S1 or T3:
+        python3 torch_actor/topologies/run_topology.py --dim 4 --n-heads 96 --tl-n 1000 --device mps --dtype float32
+(--tl-grid n: n^dim cell-centred new ICs; --tl-n m instead: m scrambled-Sobol points on T^d, for d where no
+ grid has the wanted size.)  Outputs under topologies/{results,figs}/<name>_... with
+name = S1, T3 or T4:
   results/<name>_mh.json, _mh.npz          training heads: game and PR statistics, PR evolution, params
   results/<name>_mh_snapshots.npz          parameter snapshots every --snapshot-every iterations + loss history (video)
   results/<name>_tl.json, _tl.npz          TL heads
@@ -12,7 +14,7 @@ name = S1 or T3:
   figs/<name>_pr.pdf                       PR statistics of the MH heads and of the TL heads
   figs/<name>_pr_evolution.pdf             PR statistics of the MH run against the training iteration
   figs/<name>_latent.pdf                   latent components H(t), leading PCA profiles, spectrum (MH bodies)
-  figs/<name>_tl_map.pdf                   outcome per new IC (circle for S^1, 3D scatter for T^3)
+  figs/<name>_tl_map.pdf                   outcome per new IC (circle for S^1, 3D scatter for T^3, pairwise projections for T^4)
 """
 from __future__ import annotations
 
@@ -37,8 +39,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 RES, FIG = os.path.join(HERE, "results"), os.path.join(HERE, "figs")
 os.makedirs(RES, exist_ok=True); os.makedirs(FIG, exist_ok=True)
 C_E, C_P = "#2a78d6", "#eb6834"
-NAMES = {1: "S1", 2: "T2", 3: "T3"}
-PRETTY = {1: "$S^1$", 2: "$T^2$", 3: "$T^3$"}
+NAMES = {1: "S1", 2: "T2", 3: "T3", 4: "T4"}
+PRETTY = {1: "$S^1$", 2: "$T^2$", 3: "$T^3$", 4: "$T^4$"}
 
 
 # ------------------------------------------------------------------ figures
@@ -151,6 +153,45 @@ def figure_tl_map(x0, g, cfg, dim, path, label):
         ax.set_aspect("equal"); ax.set_xlim(-1.3, 1.3); ax.set_ylim(-1.3, 1.3); ax.axis("off")
         ax.set_title(f"{label}: outcome per new IC on $S^1$ (angle = 2$\\pi$ x / L)", fontsize=10)
         ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 0.0), ncol=2)
+    elif dim >= 4:
+        d0 = np.array(g["d0"]); wall = L / 2 - np.abs((x0 % L) - L / 2).max(1)   # distance to the nearest cut-locus wall
+        pairs = [(i, j) for i in range(dim) for j in range(i + 1, dim)]
+        ncol = 4; nrow = int(np.ceil((len(pairs) + 2) / ncol))
+        fig, axes = plt.subplots(nrow, ncol, figsize=(3.4 * ncol, 3.4 * nrow))
+        axes = axes.ravel()
+        for k, (i, j) in enumerate(pairs):
+            ax = axes[k]
+            ax.scatter(x0[~capt, i], x0[~capt, j], s=6, color="#2ca02c", alpha=0.35, linewidths=0)
+            ax.scatter(x0[capt, i], x0[capt, j], s=12, color="#d62728", alpha=0.85, linewidths=0)
+            if wrong.any():
+                ax.scatter(x0[wrong, i], x0[wrong, j], s=55, facecolor="none", edgecolor="k", lw=1)
+            if wrong2.any():
+                ax.scatter(x0[wrong2, i], x0[wrong2, j], s=55, facecolor="none", edgecolor="b", lw=1)
+            for c in np.array(np.meshgrid([0, L], [0, L])).reshape(2, -1).T:
+                ax.plot(*c, "s", color="k", ms=5, clip_on=False)
+            ax.set_xlim(0, L); ax.set_ylim(0, L); ax.set_aspect("equal"); ax.set_xlabel(f"$x_{i + 1}$"); ax.set_ylabel(f"$x_{j + 1}$")
+            ax.set_title(f"projection on ($x_{i + 1}$, $x_{j + 1}$)", fontsize=9)
+        ax = axes[len(pairs)]
+        bins = np.linspace(0, d0.max() + 0.01, 25)
+        ax.hist(d0[capt], bins=bins, color="#d62728", alpha=0.8, label=f"captured ({int(capt.sum())})")
+        ax.hist(d0[~capt], bins=bins, color="#2ca02c", alpha=0.6, label=f"escaped ({int((~capt).sum())})")
+        ax.axvline(R, color="0.3", ls=":", lw=1.5, label=f"reach R = {R:.2f}")
+        ax.set_xlabel(r"initial geodesic distance $|\Delta_0|$"); ax.set_ylabel("new ICs"); ax.legend(fontsize=7.5); ax.grid(alpha=0.3)
+        ax.set_title("by geodesic distance to the pursuer", fontsize=9)
+        ax = axes[len(pairs) + 1]
+        ax.scatter(d0[~capt], wall[~capt], s=6, color="#2ca02c", alpha=0.35, linewidths=0, label="escaped")
+        ax.scatter(d0[capt], wall[capt], s=12, color="#d62728", alpha=0.85, linewidths=0, label="captured")
+        if wrong.any():
+            ax.scatter(d0[wrong], wall[wrong], s=55, facecolor="none", edgecolor="k", lw=1, label=f"capturable but escaped ({int(wrong.sum())})")
+        if wrong2.any():
+            ax.scatter(d0[wrong2], wall[wrong2], s=55, facecolor="none", edgecolor="b", lw=1, label=f"uncapturable but captured ({int(wrong2.sum())})")
+        ax.axvline(R, color="0.3", ls=":", lw=1.5)
+        ax.set_xlabel(r"$|\Delta_0|$"); ax.set_ylabel("distance to the nearest cut-locus wall"); ax.legend(fontsize=7); ax.grid(alpha=0.3)
+        ax.set_title("errors against distance and cut locus", fontsize=9)
+        for ax in axes[len(pairs) + 2:]:
+            ax.axis("off")
+        fig.suptitle(f"{label}: outcome per new IC on $T^{dim}$ (red = captured, green = escaped; squares = pursuer start and images)", fontsize=10)
+        fig.tight_layout()
     else:
         fig = plt.figure(figsize=(12, 5.5))
         ax = fig.add_subplot(1, 2, 1, projection="3d")
@@ -183,6 +224,7 @@ def main():
     ap.add_argument("--dim", type=int, required=True)
     ap.add_argument("--n-heads", type=int, default=16)
     ap.add_argument("--tl-grid", type=int, default=10, help="new ICs per axis for TL (n^dim heads)")
+    ap.add_argument("--tl-n", type=int, default=None, help="instead of the grid: this many scrambled-Sobol new ICs on T^d")
     ap.add_argument("--init-seed", type=int, default=0); ap.add_argument("--ic-seed", type=int, default=0)
     ap.add_argument("--tl-seed", type=int, default=0)
     ap.add_argument("--snapshot-every", type=int, default=100)
@@ -229,7 +271,16 @@ def main():
     print(f"[{name}] MH summary: " + json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in mh_summary.items()}), flush=True)
 
     # ---------------------------------------------------------------- TL
-    x0_new = nd.grid_ICs(a.tl_grid, cfg.L, dim)
+    if a.tl_n:
+        import warnings
+        from scipy.stats import qmc
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            x0_new = cfg.L * qmc.Sobol(dim, scramble=True, seed=a.tl_seed).random(a.tl_n)
+        tl_sampling = f"scrambled Sobol, {a.tl_n} points, seed {a.tl_seed}"
+    else:
+        x0_new = nd.grid_ICs(a.tl_grid, cfg.L, dim)
+        tl_sampling = f"cell-centred grid, {a.tl_grid}^{dim} points"
     rng = np.random.default_rng(a.tl_seed)
     pE_t = {"B": pE["B"], "b": pE["b"], "W": rng.standard_normal((len(x0_new), dim, cfg.n_b)) * np.sqrt(1.0 / cfg.n_b)}
     pP_t = {"B": pP["B"], "b": pP["b"], "W": rng.standard_normal((len(x0_new), dim, cfg.n_b)) * np.sqrt(1.0 / cfg.n_b)}
@@ -240,7 +291,7 @@ def main():
     g_t = nd.game_stats(pE_t, pP_t, x0_new, cfg)
     prE_t, prP_t = nd.pr_stats(pE_t, cfg), nd.pr_stats(pP_t, cfg)
     tl_summary = nd.summarise(g_t, prE_t, prP_t); tl_summary["seconds"] = secs_t
-    json.dump({"name": name, "dim": dim, "config": asdict(cfg), "tl_seed": a.tl_seed, "x0_new": x0_new.tolist(),
+    json.dump({"name": name, "dim": dim, "config": asdict(cfg), "tl_seed": a.tl_seed, "tl_sampling": tl_sampling, "x0_new": x0_new.tolist(),
                "summary": tl_summary, "game": {k: v for k, v in g_t.items() if k not in ("xE", "xP")}, "pr_E": prE_t, "pr_P": prP_t,
                "device": f"{tl_dev} {tl_dt}"}, open(os.path.join(RES, f"{name}_tl.json"), "w"), indent=1)
     np.savez_compressed(os.path.join(RES, f"{name}_tl.npz"), x_E0=x0_new, WE=pE_t["W"], WP=pP_t["W"], BE=pE["B"], bE=pE["b"], BP=pP["B"], bP=pP["b"])

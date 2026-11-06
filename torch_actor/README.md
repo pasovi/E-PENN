@@ -39,7 +39,7 @@ ensemble statistics over the grid are reproducible across machines.
 | `baseline_D4/` | **the current benchmark**: driver, 100-run grid (`ckpt/`, `results/`), figures, video, `summary.json`, `config.json` |
 | `baseline_D4_w1500/` | the same run with the 1,500-step pursuer warm-up (control; same layout) |
 | `transfer_learning/` | new linear heads trained on a frozen body (TL) for a grid of new ICs: `tl.py`, results, capture figure and torus outcome map |
-| `topologies/` | the D1 pipeline on S¹ and T³ (dimension-generic model + metrics, MH training, TL, figures, S¹ video) |
+| `topologies/` | the D1 pipeline on S¹, T³ and T⁴ (dimension-generic model + metrics, MH training, TL, figures, S¹ and T³ videos) |
 | `paper/` | the draft's experiments re-run with the port (29 Oct 2026); `paper/README.md` compares the numbers with the draft |
 | `test_parity.py`, `bench.py`, `run_grid.py`, `compare_r1.py`, `numpy_reference.py`, `results/` | the port's gate against the NumPy backward pass, timing, and the first grid comparisons (`PORT_NOTES.md`) |
 
