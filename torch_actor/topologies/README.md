@@ -25,6 +25,12 @@ python3 torch_actor/topologies/run_topology.py --dim 3 --n-heads 64 --tl-grid 10
 ```bash
 python3 torch_actor/topologies/animate_s1.py
 ```
+```bash
+python3 torch_actor/topologies/animate_t3.py
+```
+```bash
+python3 torch_actor/topologies/tl_map_t3_html.py
+```
 
 Outputs (6 Nov 2026): `results/<S1|T3>_{mh,tl}.json/.npz` (every number; per-head game statistics;
 PR evolution every 500 iterations), `results/S1_mh_snapshots.npz`, and in `figs/`: `_game_mh`,
@@ -32,7 +38,9 @@ PR evolution every 500 iterations), `results/S1_mh_snapshots.npz`, and in `figs/
 `_pr_evolution`, `_latent` (components, PCA profiles, spectrum), `_tl_map` (outcome per new IC:
 the circle for S¹, a 3D scatter plus a histogram by geodesic distance for T³), and
 `S1_training_evolution.mp4` (two captured and two escaped heads as space–time spirals on the circle,
-with the loss history).
+with the loss history), `T3_training_evolution.mp4` (three captured and three escaped heads in the
+periodic cube, with the loss history) and `T3_tl_map.html` (the T³ TL outcome map as a rotatable,
+self-contained plotly page: hover gives each IC's distance, V*, T_c and the chased image).
 
 ## Results
 
