@@ -95,7 +95,10 @@ the competing-image distance), the error rate is the same function of m on T², 
 dimension term p = 0.59; the geometry-only model predicts 53 / 11 / 4 errors against the observed 56 / 10 / 3).
 The rise from 91 % to 98 % comes from the shrinking share of capturable ICs with a competing image (17 % → 12 % →
 8.5 % under uniform sampling) plus sampler bias (the 10³ grid on T³ has no IC in that zone). See
-`conditional_analysis/README.md`; S¹ is a different mechanism (wrong-direction heads) and is not on that curve.
+`conditional_analysis/README.md`; S¹ is a different mechanism (wrong-direction heads) and is not on that curve. A control
+with 500 ICs uniform inside the capturable shell per dimension, 3 head seeds (`control_ball.py`), gives raw error rates
+12.1 / 6.4 / 3.4 % on T² / T³ / T⁴ (44 % on S¹) and the same verdict: dimension term p = 0.51, the error rate at fixed
+image margin is one curve, the drop with d is the shrinking share of the ball near a cut-locus wall.
 
 ### S¹ without the pursuer warm-up (`--warmup 0 --name S1_w0`)
 

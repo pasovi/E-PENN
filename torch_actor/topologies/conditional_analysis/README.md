@@ -68,3 +68,42 @@ every d), which removes both sampling biases at once.
 **S¹ is a different mechanism** and is excluded from the pooled fit: its errors (21 of 88) are heads running
 the wrong way round the circle, spread over all b (b from 0.03 to 0.63), and m = L − 2|Δ0| carries no extra
 information there. Its 24 % error rate is not on the T^d curve.
+
+## Control run: ICs uniform inside the capturable shell (`control_ball.py`, 6 Nov 2026)
+
+The sampling biases above are removed by drawing the new ICs uniformly (in volume) in the capturable shell
+0.4 ≤ |Δ0| ≤ R, the same number in every dimension (500, IC seed 0), and transferring them onto the same frozen
+bodies with the same protocol for three head seeds (0, 1, 2); 12 TL runs of 60–80 s each on MPS.
+
+```bash
+python3 torch_actor/topologies/conditional_analysis/control_ball.py --n 500 --seeds 0,1,2 --device mps --dtype float32
+```
+Outputs: `results/ball_T<d>_seed<s>.json`, `results_ball.json`, `summary_ball.md`, `figs/conditional_ball.pdf`.
+
+| | S¹ | T² | T³ | T⁴ |
+|---|---|---|---|---|
+| errors per seed (of 500) | 204 / 221 / 235 | 64 / 60 / 58 | 35 / 31 / 30 | 20 / 21 / 10 |
+| error rate pooled (95 % CI) | 44.0 % [41.5, 46.5] | 12.1 % [10.6, 13.9] | 6.4 % [5.3, 7.8] | 3.4 % [2.6, 4.4] |
+| danger-zone share of the ICs | 18.4 % | 15.2 % | 10.2 % | 9.0 % |
+| errors / ICs inside the zone | 141 / 276 (51 %) | 96 / 228 (42 %) | 51 / 153 (33 %) | 29 / 135 (21 %) |
+| errors / ICs outside the zone | 519 / 1224 (42 %) | 86 / 1272 (6.8 %) | 45 / 1347 (3.3 %) | 22 / 1365 (1.6 %) |
+
+Pooled logistic fit over T², T³, T⁴ (4,500 ICs, 329 errors): logit p = 6.3 + 26.6 b − 19.9 m; dimension term
+on top of the geometry: LR = 1.35 (2 df), **p = 0.51** (odds ratios vs T²: T³ 1.10, T⁴ 0.87).
+
+| | observed errors | expected (geometry only) | observed rate | standardised rate |
+|---|---|---|---|---|
+| T² | 182 | 182.8 | 12.1 % | 12.2 % |
+| T³ | 96 | 89.7 | 6.4 % | 6.0 % |
+| T⁴ | 51 | 56.5 | 3.4 % | 3.8 % |
+
+**Reading.** With fair sampling the raw rates are higher than the pipeline's (12 / 6.4 / 3.4 % against
+9 / 2.8 / 1.7 %), confirming that the grids under-sampled the dangerous ICs, and they still fall with d. But the
+error rate at fixed image margin m is again the same curve for the three tori (bottom middle of the figure),
+the dimension term is again not significant, and the geometry-only model reproduces the error counts to
+within the seed scatter (183 / 90 / 57 expected against 182 / 96 / 51 observed). The whole dependence on d is
+the distribution of m inside the capturable ball: with more dimensions a smaller share of the ball lies
+near a cut-locus wall, so fewer new heads start with a competing image. The transfer mechanism itself (a new
+linear head on a constant-heading body, locking onto one periodic image) does not get better or worse with the
+dimension. S¹ is again apart (44 % of the shell ICs escape, flat in b, wrong-direction heads), consistent
+with the pipeline's 21 of the 48 grid ICs that lie in the same shell.
