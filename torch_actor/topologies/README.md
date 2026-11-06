@@ -76,3 +76,17 @@ geodesic distance 0.45 to 0.85 on either side of the pursuer, where the new purs
 wrong way round the circle at full speed. With one dimension the only wrong choice is the opposite
 direction, and a head that starts that way has nothing to steer it back: the smooth normalisation
 that lets a T² or T³ head rotate is replaced by a sign.
+
+### S¹ without the pursuer warm-up (`--warmup 0 --name S1_w0`)
+
+| | S¹ MH, warm-up 1500 | S¹ MH, no warm-up | S¹ TL, warm-up 1500 | S¹ TL, no warm-up |
+|---|---|---|---|---|
+| capture on capturable | 100 % (14) | 100 % (14) | 76.1 % (88) | 79.5 % (88) |
+| T_c / V* on captured | 1.009 | 1.009 | 1.013 | 1.012 |
+| Gram PR, E / P | 1.00 / 1.00 | 1.00 / 1.00 | 1.01 / 1.11 | 1.02 / 1.07 |
+| constancy η, E / P | 1.00 / 1.00 | 1.00 / 1.00 | 0.99 / 0.94 | 0.98 / 0.95 |
+| PR(H) centred, E / P | 2.67 / 4.70 | 3.71 / 4.03 | same body | same body |
+
+The warm-up has no effect on the game (identical capture and T_c in the MH run, 3 heads' difference
+in the TL run, inside the single-seed noise); the latent PR of the unread directions differs because
+it is never trained toward anything, as on T². `S1_w0_training_evolution.mp4` is the corresponding video.

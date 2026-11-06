@@ -21,7 +21,7 @@ import json
 import os
 import sys
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 import numpy as np
 import torch
@@ -190,12 +190,15 @@ def main():
     ap.add_argument("--device", default="cpu"); ap.add_argument("--dtype", default="float64")
     ap.add_argument("--tl-device", default=None); ap.add_argument("--tl-dtype", default=None)
     ap.add_argument("--name", default=None)
+    ap.add_argument("--warmup", type=int, default=None, help="pursuer-only warm-up steps (default 1500)")
     a = ap.parse_args()
     dim, name = a.dim, a.name or NAMES[a.dim]
     label = PRETTY[dim]
     dtype = {"float64": torch.float64, "float32": torch.float32}[a.dtype]
     tl_dev, tl_dt = a.tl_device or a.device, {"float64": torch.float64, "float32": torch.float32}[a.tl_dtype or a.dtype]
     cfg = nd.Config(truncate=True, n_h=a.n_heads)
+    if a.warmup is not None:
+        cfg = replace(cfg, warmup=a.warmup)
 
     # ---------------------------------------------------------------- MH training
     pE0, pP0, x0 = nd.initial_state(cfg, dim, a.init_seed, a.ic_seed)
