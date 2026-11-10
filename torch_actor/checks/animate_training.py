@@ -248,7 +248,7 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
     axB.set_ylabel("loss"); axB.legend(fontsize=8, loc="center right")
     axB.set_title("Loss history of Eq. (1); dotted = Adam resets; marker = current frame", fontsize=10)
     axB.grid(alpha=0.25)
-    sup = fig.suptitle("", fontsize=11, y=0.95)
+    sup = fig.suptitle("", fontsize=11, y=0.97)   # two lines: run description, then iteration / captures / frame
 
     def update(i):
         S = sims[i]
@@ -272,7 +272,7 @@ def render(snaps, labels, snap_step, hist, x0, cfg_r: RunConfig, cfg: pt.Config,
         n_cap = int(S["captured"].sum()); n_capable = int(S["capturable"].sum())
         n_cap_c = int((S["captured"] & S["capturable"]).sum())
         sup.set_text(f"{title}{' (capture-truncated loss)' if cfg.truncate else ''}, warm-up {cfg.warmup}, "
-                     f"{cfg.n_P_steps}:{cfg.n_E_steps} steps (init seed 0, IC seed 0): {labels[i]}   |   "
+                     f"{cfg.n_P_steps}:{cfg.n_E_steps} steps (init seed 0, IC seed 0)\n{labels[i]}   |   "
                      f"captured {n_cap} of {n_h} heads ({n_cap_c} of the {n_capable} capturable)   |   "
                      f"frame {i + 1}/{len(sims)}")
         return []

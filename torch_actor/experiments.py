@@ -28,6 +28,16 @@ Stages (python3 torch_actor/experiments.py [stage ...]; default: all):
   baseline_D4         the working benchmark (4-layer body, K = 12, lr 1e-3 / 1e-4, no warm-up, 3:1,
                       truncated loss) -> baseline_D4/{ckpt,results}/ ; see baseline_D4/README.md
   baseline_D4_w1500   the same with the 1,500-step pursuer warm-up -> baseline_D4_w1500/
+  dv_D4               the speed-difference sweep dv = v_P - v_E in {0.05, ..., 0.5} on the baseline_D4
+                      configuration, one 100-run grid per dv -> dv_D4/dv<dv>/ ; see dv_D4/README.md
+  dv_D1               the same sweep with a 1-layer body (16 tanh units), everything else as in dv_D4
+                      -> dv_D1/dv<dv>/ ; see dv_D1/README.md
+  dv_D1_lr1e-2        dv_D1 at lr_P = 1e-2, lr_E = 1e-3 (10x) -> dv_D1_lr1e-2/dv<dv>/ ; see dv_D1_lr1e-2/README.md
+  dv_D4_precap        a re-run of dv_D4 (identical config and seeds) whose PRs are taken over the time before
+                      capture only -> dv_D4_precap/dv<dv>/ ; see dv_D4_precap/README.md
+  dv_D1_precap        the same for dv_D1 (1-layer body): a re-run whose PRs are taken over the time before
+                      capture only -> dv_D1_precap/dv<dv>/ ; see dv_D1_precap/README.md
+  baseline_D4_crosscheck  an independent re-run of baseline_D4 (identical config) -> baseline_D4_crosscheck/
   r1_trunc_w0_p1_e3, r1_trunc_w1500_p1_e3   1 pursuer : 3 evader steps per iteration, warm-up 0 / 1500 (truncated loss)
   r1_trunc_w1500_p1, r1_trunc_w0_p3, r1_trunc_w0_p1  protocol split: warm-up 1500 or 0,
             3:1 or 1:1 pursuer:evader steps (the benchmark r1_trunc is warm-up 1500, 3:1)
@@ -150,13 +160,17 @@ def r1_record(name, arm, rcfg: RunConfig, out, r, snapshots):
 
 def stage_r1(truncate: bool = False, K: int | None = None, depth: int = 1, lr_scale: float = 1.0,
              warmup: int | None = None, n_P_steps: int | None = None, n_E_steps: int | None = None,
-             tag: str | None = None, root: str | None = None):
+             tag: str | None = None, root: str | None = None, v_P: float | None = None):
     """truncate=True: the 10 x 10 grid only, with the capture-truncated distance term,
     under checks/{ckpt,results}/r1_trunc and paper/ckpt/baseline_trunc.
-    K: input harmonics (K = 0: the body sees only t / t_max); tag gets a _k<K> suffix."""
+    K: input harmonics (K = 0: the body sees only t / t_max); tag gets a _k<K> suffix.
+    v_P: pursuer speed (default 1.2, i.e. dv = 0.2); set in both the training Config and the RunConfig
+    used for scoring, so snapshots, capturability and the saddle all use it."""
     cfg = pt.Config(truncate=truncate, depth=depth) if K is None else pt.Config(truncate=truncate, K=K, depth=depth)
     cfg = replace(cfg, lr_P=cfg.lr_P * lr_scale, lr_E=cfg.lr_E * lr_scale)
     proto = ""
+    if v_P is not None:
+        cfg = replace(cfg, v_P=v_P); proto += f"_vP{v_P:g}"
     if warmup is not None:
         cfg = replace(cfg, warmup=warmup); proto += f"_w{warmup}"
     if n_P_steps is not None:
@@ -164,7 +178,7 @@ def stage_r1(truncate: bool = False, K: int | None = None, depth: int = 1, lr_sc
     if n_E_steps is not None:
         cfg = replace(cfg, n_E_steps=n_E_steps); proto += f"_e{n_E_steps}"
     base = replace(RunConfig(), lr_P=cfg.lr_P, lr_E=cfg.lr_E, warmup=cfg.warmup, n_P_steps=cfg.n_P_steps,
-                   n_E_steps=cfg.n_E_steps)
+                   n_E_steps=cfg.n_E_steps, v_P=cfg.v_P)
     if K is not None:
         base = replace(base, K=K)
     tag = tag or (("r1_trunc" if truncate else "r1") + ("" if K is None else f"_k{K}") + ("" if depth == 1 else f"_d{depth}")
@@ -390,6 +404,48 @@ def stage_shapley():
     log(f"shapley: {time.time() - t0:.0f} s")
 
 
+DV_D4 = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50]
+
+
+def _dv_sweep(depth: int, folder: str, dvs=None, lr_scale: float = 0.1):
+    """Speed-difference sweep on the baseline_D4 protocol (K = 12, truncated loss, no warm-up, 3:1,
+    lr 1e-3 / 1e-4 = lr_scale 0.1 of the defaults) with a `depth`-layer body: one 100-run grid per
+    dv = v_P - v_E, under <folder>/dv<dv>/{ckpt,results}/. The seeds are the same at every dv and depth."""
+    for dv in (dvs or DV_D4):
+        stage_r1(truncate=True, depth=depth, lr_scale=lr_scale, warmup=0, v_P=round(1.0 + dv, 4),
+                 tag=f"{folder}_dv{dv:.2f}", root=os.path.join(HERE, folder, f"dv{dv:.2f}"))
+
+
+def stage_dv_D4(dvs=None):
+    """The sweep with the 4-layer body. dv = 0.20 is baseline_D4 itself (same seeds, so bit-identical on
+    the same machine and torch version)."""
+    _dv_sweep(4, "dv_D4", dvs)
+
+
+def stage_dv_D1(dvs=None):
+    """The same sweep with a 1-layer body (16 tanh units), everything else as in dv_D4."""
+    _dv_sweep(1, "dv_D1", dvs)
+
+
+def stage_dv_D1_lr1e2(dvs=None):
+    """dv_D1 at the default learning rates lr_P = 1e-2, lr_E = 1e-3 (10x dv_D1). dv = 0.20 is the
+    configuration of r1_trunc_w0_p3 (same seeds, so bit-identical on the same machine and torch version)."""
+    _dv_sweep(1, "dv_D1_lr1e-2", dvs, lr_scale=1.0)
+
+
+def stage_dv_D4_precap(dvs=None):
+    """A re-run of dv_D4 (4-layer body, identical config and seeds, so bit-identical to it on the same machine
+    and torch version) whose participation ratios are taken over the time before capture only:
+    dv_D4_precap/precap.py, then dv_D4_precap/make_figures.py."""
+    _dv_sweep(4, "dv_D4_precap", dvs)
+
+
+def stage_dv_D1_precap(dvs=None):
+    """The same for dv_D1: a re-run with the 1-layer body (identical config and seeds, so bit-identical to dv_D1 on the
+    same machine and torch version), PRs over the time before capture: dv_D1_precap/make_figures.py."""
+    _dv_sweep(1, "dv_D1_precap", dvs)
+
+
 STAGES = {"r1": stage_r1, "r1_trunc": lambda: stage_r1(truncate=True),
           "r1_trunc_k0": lambda: stage_r1(truncate=True, K=0),
           "r1_trunc_k0_d4": lambda: stage_r1(truncate=True, K=0, depth=4),
@@ -405,7 +461,14 @@ STAGES = {"r1": stage_r1, "r1_trunc": lambda: stage_r1(truncate=True),
           "baseline_D4": lambda: stage_r1(truncate=True, depth=4, lr_scale=0.1, warmup=0, tag="baseline_D4",
                                           root=os.path.join(HERE, "baseline_D4")),
           "baseline_D4_w1500": lambda: stage_r1(truncate=True, depth=4, lr_scale=0.1, warmup=1500, tag="baseline_D4_w1500",
-                                                root=os.path.join(HERE, "baseline_D4_w1500")), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
+                                                root=os.path.join(HERE, "baseline_D4_w1500")),
+          "dv_D4": lambda: stage_dv_D4(),
+          "dv_D1": lambda: stage_dv_D1(),
+          "dv_D1_lr1e-2": lambda: stage_dv_D1_lr1e2(),
+          "dv_D4_precap": lambda: stage_dv_D4_precap(),
+          "dv_D1_precap": lambda: stage_dv_D1_precap(),
+          "baseline_D4_crosscheck": lambda: stage_r1(truncate=True, depth=4, lr_scale=0.1, warmup=0, tag="baseline_D4_crosscheck",
+                                                     root=os.path.join(HERE, "baseline_D4_crosscheck")), "controls": stage_controls, "c2": stage_c2, "c7": stage_c7,
           "dv": stage_dv, "protocols": stage_protocols, "honest": stage_honest,
           "shapley": stage_shapley}
 

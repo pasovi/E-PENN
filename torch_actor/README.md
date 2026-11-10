@@ -38,6 +38,12 @@ ensemble statistics over the grid are reproducible across machines.
 | `checks/{ckpt,results}/<grid>/` | the 100-run grids of every experiment so far (rev2 record format, one JSON per run); `checks/figs/` their figures and videos |
 | `baseline_D4/` | **the current benchmark**: driver, 100-run grid (`ckpt/`, `results/`), figures, video, `summary.json`, `config.json` |
 | `baseline_D4_w1500/` | the same run with the 1,500-step pursuer warm-up (control; same layout) |
+| `baseline_D4_crosscheck/` | an independent re-run of `baseline_D4` (bit-identical), with figures and a training gif |
+| `dv_D4/` | the speed-difference sweep Δv = v_P − v_E ∈ {0.05, …, 0.5} on `baseline_D4`, one 100-run grid per Δv; PR and capture-share figures |
+| `dv_D1/` | the same sweep with a 1-layer body (everything else as in `dv_D4`); same layout and figures |
+| `dv_D1_lr1e-2/` | the `dv_D1` sweep at lr 1e-2 / 1e-3 (10×); same layout and figures |
+| `dv_D4_precap/` | a re-run of `dv_D4` (bit-identical) with the participation ratios taken over the time before capture only (`precap.py`); same figures, plus a PR figure with the before-capture lines alone |
+| `dv_D1_precap/` | the same for `dv_D1` (1-layer body): a bit-identical re-run, PRs over the time before capture; same three figures |
 | `paper/` | the draft's experiments re-run with the port (29 Oct 2026); `paper/README.md` compares the numbers with the draft |
 | `test_parity.py`, `bench.py`, `run_grid.py`, `compare_r1.py`, `numpy_reference.py`, `results/` | the port's gate against the NumPy backward pass, timing, and the first grid comparisons (`PORT_NOTES.md`) |
 
@@ -53,6 +59,12 @@ ensemble statistics over the grid are reproducible across machines.
 | `r1_trunc_w{1500,0}_p{3,1}`, `..._p1_e3` | protocol split (warm-up x step ratio) | warm-up irrelevant; 3:1 -> 90% capture, 1:1 -> 55–65%, 1:3 -> 0.5% |
 | `baseline_D4` | 4 layers, K = 12, lr 1e-3 / 1e-4, no warm-up, 3:1 | capture 91.7%, Gram PR 1.92, PR(H) unc 1.0; see `baseline_D4/README.md` |
 | `baseline_D4_w1500` | the same with warm-up 1500 | identical ensemble (capture 92.2%) |
+| `baseline_D4_crosscheck` | re-run of `baseline_D4` | all 100 runs bit-identical |
+| `dv_D4` | `baseline_D4` at Δv ∈ {0.05, 0.1, …, 0.5} (10 points) | capture tracks f(R); constant headings and Gram PR ≈ 1.93 flat across ρ = 1; PRs rise from saturation (Δv ≈ 0.33) on, the pursuer's most, from post-capture headings; see `dv_D4/README.md` |
+| `dv_D1` | the `dv_D4` sweep with a 1-layer body (10 points) | capture as in `dv_D4` (0.913 at Δv = 0.2), slightly better past ρ = 1; latent PR(H) 5–8 centred, 2–6 uncentred at every Δv, yet constant headings below the break; heading variation from ρ ≈ 1 on, all of it after capture; see `dv_D1/README.md` |
+| `dv_D1_lr1e-2` | `dv_D1` at lr 1e-2 / 1e-3 (10 points; Δv = 0.2 is `r1_trunc_w0_p3`, bit-identical) | capture as `dv_D1` up to the break, worse past it (0.78 at Δv = 0.25, 0.96 at 0.5: more wrong-copy choices); pursuer latent saturated, PR(H) 7–8 from Δv = 0.1 on; constant headings before capture at every Δv; see `dv_D1_lr1e-2/README.md` |
+| `dv_D4_precap` | `dv_D4` re-run (all 1,000 runs bit-identical), PRs over the time before capture | Gram PR 1.91–1.94 and η ≥ 0.996 at every Δv: the whole-episode rise was all after capture; uncentred PR(H) rise cut by ~60% (pursuer 1.36 -> 1.14 at Δv = 0.5), the rest latent motion the headings do not read; centred PR(H) unchanged; PR(Z) rises (|z| gauge over unequal windows, definition-dependent); see `dv_D4_precap/README.md` |
+| `dv_D1_precap` | `dv_D1` re-run (all 1,000 runs bit-identical), PRs over the time before capture | Gram PR 1.92–1.94 and η ≥ 0.995 at every Δv, as with 4 layers; the latent PRs' whole-episode rise (centred to 7.9, uncentred to 5.7) is post-capture too: before capture centred 4.8–5.9, uncentred 2.0–3.1 at every Δv, a 1-layer latent with 34–50% time variation that the headings do not read; PR(Z) rises as with 4 layers; see `dv_D1_precap/README.md` |
 
 ## Typical commands
 
