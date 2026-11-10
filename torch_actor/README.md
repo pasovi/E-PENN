@@ -5,6 +5,8 @@ plus everything that has been run with it. Dependencies: `torch`, `numpy`, `matp
 (`imageio-ffmpeg` for the mp4 videos). Everything runs from the repository root, e.g.
 `python3 torch_actor/experiments.py baseline_D4`.
 
+**Start with [`SUMMARY.md`](SUMMARY.md)**: tests done and conclusions so far, written for collaborators.
+
 **The benchmark from now on is [`baseline_D4/`](baseline_D4/README.md)** (4-layer body, capture-truncated
 loss, no warm-up, 3:1 steps, lr 1e-3 / 1e-4). The older one-layer baselines (`paper/ckpt/baseline*`,
 `checks/results/r1*`) are kept for reference and are not deleted.
